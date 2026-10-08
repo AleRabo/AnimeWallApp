@@ -53,9 +53,14 @@ function startNextServer() {
     ? ['start', '-H', host, '-p', String(port)]
     : ['dev', '-H', host, '-p', String(port)];
 
-  nextProcess = spawn('node', [nextCli, ...args], {
+  const nodeRuntime = process.execPath;
+  nextProcess = spawn(nodeRuntime, [nextCli, ...args], {
     cwd: projectRoot,
-    env: { ...process.env, BROWSER: 'none' },
+    env: {
+      ...process.env,
+      BROWSER: 'none',
+      ELECTRON_RUN_AS_NODE: '1'
+    },
     stdio: 'inherit'
   });
 
