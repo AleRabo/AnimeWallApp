@@ -1,0 +1,73 @@
+{
+  "name": "animewall",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "desktop:dev": "electron .",
+    "desktop:build": "npm run build",
+    "desktop:start": "electron . --production",
+    "desktop:dist": "npm run build && electron-builder --win"
+  },
+  "type": "module",
+  "main": "electron/main.mjs",
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.117.2",
+    "axios": "^1.20.0",
+    "cheerio": "^1.2.0",
+    "next": "^16.3.6",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/node": "^26.6.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "autoprefixer": "^10.6.1",
+    "electron": "^38.2.0",
+    "electron-builder": "^26.0.12",
+    "electron-updater": "^6.6.2",
+    "postcss": "^8.5.28",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.9.3"
+  },
+  "build": {
+    "appId": "it.animewall.desktop",
+    "productName": "AnimeWall",
+    "artifactName": "AnimeWall-${version}-setup.${ext}",
+    "files": [
+      "electron/**/*",
+      "src/**/*",
+      "public/**/*",
+      ".next/**/*",
+      "next.config.js",
+      "package.json",
+      "node_modules/**/*",
+      "!**/.env.local"
+    ],
+    "extraMetadata": {
+      "main": "electron/main.mjs"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "electron/icon.png"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "AleRabo",
+        "repo": "AnimeWallApp"
+      }
+    ],
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false
+    }
+  }
+}
