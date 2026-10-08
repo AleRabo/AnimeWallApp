@@ -27,7 +27,19 @@ jobs:
       - name: Build Next.js
         run: npm run build
 
-      - name: Publish Windows installer
-        run: npx electron-builder --win --publish always
+      - name: Build Windows installer
+        run: npx electron-builder --win --publish never
+
+      - name: Publish GitHub release assets
+        shell: bash
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            dist/AnimeWall-${GITHUB_REF_NAME#v}-setup.exe \
+            dist/AnimeWall-${GITHUB_REF_NAME#v}-setup.exe.blockmap \
+            dist/latest.yml \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "AnimeWall ${GITHUB_REF_NAME}" \
+            --generate-notes \
+            --verify-tag
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
