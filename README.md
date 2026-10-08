@@ -12,7 +12,7 @@ Per le release GitHub, configurare gli stessi due valori come **Actions
 secrets** nella repository pubblica `AleRabo/AnimeWallApp`:
 
 - `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` (oppure `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`)
 
 Sono variabili pubbliche necessarie al client Supabase Realtime. Non inserirle
 nel codice o nei file committati: la GitHub Action le usa soltanto durante la
