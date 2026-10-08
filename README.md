@@ -45,6 +45,12 @@ La GitHub Action di release compila l'installer Windows e pubblica gli asset.
 Gli utenti ricevono una notifica, possono scaricare l'aggiornamento e
 riavviare l'app per installarlo.
 
+Il primo avvio dell'installer può mostrare un avviso Microsoft SmartScreen:
+gli installer non sono firmati con un certificato Authenticode commerciale.
+Per rimuovere l'avviso serve un certificato di firma del codice e la relativa
+secret GitHub Actions; non è possibile includere un certificato privato nel
+repository pubblico.
+
 Il sito AnimeWall e GitHub hanno ruoli diversi: AnimeWorld resta la fonte live
 per ricerca, catalogo e streaming, mentre la repository pubblica AnimeWallApp
 distribuisce gli aggiornamenti del client desktop. L'app controlla direttamente

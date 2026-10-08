@@ -1,6 +1,6 @@
 {
   "name": "animewall",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "AnimeWall desktop app",
   "scripts": {
     "dev": "next dev",
@@ -20,6 +20,7 @@
     "@supabase/supabase-js": "^2.117.2",
     "axios": "^1.20.0",
     "cheerio": "^1.2.0",
+    "electron-updater": "^6.6.2",
     "next": "^16.3.6",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
@@ -32,7 +33,6 @@
     "autoprefixer": "^10.6.1",
     "electron": "^38.2.0",
     "electron-builder": "^26.0.12",
-    "electron-updater": "^6.6.2",
     "postcss": "^8.5.28",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.9.3"
@@ -69,7 +69,8 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "perMachine": false
+      "perMachine": false,
+      "deleteAppDataOnUninstall": false
     }
   }
 }
