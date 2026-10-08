@@ -8,6 +8,17 @@ Versione desktop di AnimeWall basata su Electron e Next.js.
 2. Inserire `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
 3. Installare le dipendenze con `npm install`.
 
+Per le release GitHub, configurare gli stessi due valori come **Actions
+secrets** nella repository pubblica `AleRabo/AnimeWallApp`:
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+
+Sono variabili pubbliche necessarie al client Supabase Realtime. Non inserirle
+nel codice o nei file committati: la GitHub Action le usa soltanto durante la
+build e il valore viene incorporato nel bundle client, come previsto per le
+variabili `NEXT_PUBLIC_*`.
+
 ## Avvio
 
 Per lo sviluppo:
