@@ -9,7 +9,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
 const port = 3210;
 const host = '127.0.0.1';
-const isProduction = process.argv.includes('--production');
+const isProduction = app.isPackaged || process.argv.includes('--production');
 const { autoUpdater } = electronUpdater;
 let nextProcess;
 
