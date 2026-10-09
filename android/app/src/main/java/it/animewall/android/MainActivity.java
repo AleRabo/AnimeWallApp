@@ -98,17 +98,6 @@ public class MainActivity extends AppCompatActivity {
                                 runOnUiThread(() -> showUpdateDialog(asset.optString("browser_download_url"), name));
                             }
 
-                            private int parseVersionCode(String tag) {
-                                try {
-                                    String version = tag.replace("android-v", "");
-                                    String[] parts = version.split("\\.");
-                                    return Integer.parseInt(parts[0]) * 100
-                                            + Integer.parseInt(parts[1]) * 10
-                                            + Integer.parseInt(parts[2]);
-                                } catch (Exception ignored) {
-                                    return VERSION_CODE;
-                                }
-                            }
                             return;
                         }
                     }
@@ -117,6 +106,18 @@ public class MainActivity extends AppCompatActivity {
                 // An unavailable update service must not prevent the site from opening.
             }
         });
+    }
+
+    private int parseVersionCode(String tag) {
+        try {
+            String version = tag.replace("android-v", "");
+            String[] parts = version.split("\\.");
+            return Integer.parseInt(parts[0]) * 100
+                    + Integer.parseInt(parts[1]) * 10
+                    + Integer.parseInt(parts[2]);
+        } catch (Exception ignored) {
+            return VERSION_CODE;
+        }
     }
 
     private void showUpdateDialog(String url, String fileName) {
