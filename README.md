@@ -43,6 +43,11 @@ evitare di distribuire l'intero progetto di sviluppo. Electron/Chromium resta
 necessario per il funzionamento dell'app Windows, quindi l'installer non può
 avere le dimensioni di una semplice pagina web.
 
+La home include anche **Continua a guardare**: anime, episodio, copertina,
+percentuale, durata, posizione corrente e data dell'ultimo aggiornamento vengono
+salvati nel `localStorage` del dispositivo. I dati non vengono inviati a
+Supabase o ad altri servizi e possono essere rimossi singolarmente dalla home.
+
 ## Aggiornamenti automatici
 
 Gli aggiornamenti dell'app desktop vengono pubblicati come GitHub Release nella

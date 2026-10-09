@@ -2,6 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import {
+  CONTINUE_WATCHING_EVENT,
+  getContinueWatching,
+  removeContinueWatching,
+  type ContinueWatchingItem
+} from '@/lib/continue-watching';
 
 interface LatestEpisode {
   id: string;
@@ -26,6 +32,18 @@ export default function HomePage() {
   const [featuredAnime, setFeaturedAnime] = useState<FeaturedAnime | null>(null);
   const [filter, setFilter] = useState<'all' | 'sub' | 'dub'>('all');
   const [loading, setLoading] = useState(true);
+  const [continueWatching, setContinueWatching] = useState<ContinueWatchingItem[]>([]);
+
+  useEffect(() => {
+    const update = () => setContinueWatching(getContinueWatching().filter((item) => !item.completed));
+    update();
+    window.addEventListener(CONTINUE_WATCHING_EVENT, update);
+    window.addEventListener('storage', update);
+    return () => {
+      window.removeEventListener(CONTINUE_WATCHING_EVENT, update);
+      window.removeEventListener('storage', update);
+    };
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -70,6 +88,50 @@ export default function HomePage() {
         <p className="mx-auto max-w-4xl rounded-2xl border border-neutral-800 bg-[#0f1117] px-5 py-4 text-center text-sm leading-relaxed text-neutral-300">
           Questo sito offre anime gratis, ma ricorda che se hai possibilità supporta gli studi d'animazione usando siti officiali.
         </p>
+
+        {continueWatching.length > 0 && (
+          <section className="flex flex-col gap-5">
+            <div className="flex items-center justify-between border-b border-neutral-800 pb-4">
+              <h2 className="flex items-center gap-2 text-xl font-black uppercase tracking-wider text-white">
+                <span className="inline-block h-6 w-2.5 rounded-full bg-orange-500" />
+                Continua a guardare
+              </h2>
+              <span className="text-xs font-bold text-neutral-500">Salvato su questo dispositivo</span>
+            </div>
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+              {continueWatching.slice(0, 12).map((item) => {
+                const progress = item.duration > 0
+                  ? Math.min(100, Math.round((item.currentTime / item.duration) * 100))
+                  : 0;
+                return (
+                  <div key={`${item.animeId}-${item.episodeId}`} className="group relative overflow-hidden rounded-2xl border border-neutral-800 bg-[#151822]">
+                    <Link href={`/watch?anime=${encodeURIComponent(item.animeId)}&ep=${encodeURIComponent(item.episodeId)}`}>
+                      <div className="relative aspect-[2/3] bg-neutral-900">
+                        {item.cover ? <img src={item.cover} alt={item.title} className="h-full w-full object-cover transition group-hover:scale-105" /> : (
+                          <div className="flex h-full items-center justify-center p-3 text-center text-xs font-bold text-neutral-500">Nessuna copertina</div>
+                        )}
+                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/70 to-transparent p-3 pt-12">
+                          <p className="line-clamp-2 text-sm font-black text-white">{item.title}</p>
+                          <p className="mt-1 text-xs font-bold text-orange-400">Episodio {item.episodeNumber || '?'}</p>
+                        </div>
+                      </div>
+                      <div className="h-1 bg-neutral-800"><div className="h-full bg-orange-500" style={{ width: `${progress}%` }} /></div>
+                      <p className="px-3 py-2 text-xs font-bold text-neutral-400">{progress > 0 ? `${progress}% completato` : 'Non ancora iniziato'}</p>
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => removeContinueWatching(item.animeId, item.episodeId)}
+                      aria-label={`Rimuovi ${item.title} dalla cronologia`}
+                      className="absolute right-2 top-2 rounded-lg bg-black/70 px-2 py-1 text-xs font-black text-white opacity-0 transition hover:bg-red-500 group-hover:opacity-100"
+                    >
+                      ×
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
 
         {/* 🔍 BARRA DI RICERCA */}
       <section className="w-full">

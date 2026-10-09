@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState, use } from 'react';
+import { useEffect, useRef, useState, use } from 'react';
 import Link from 'next/link';
-import { getEpisodeStream } from '@/lib/api';
+import { getAnimeDetails, getEpisodeStream } from '@/lib/api';
+import { getContinueWatching, saveContinueWatching } from '@/lib/continue-watching';
 
 interface Episode {
   id: string;
@@ -33,6 +34,14 @@ export default function WatchPage({
   const [streamEpisodeNumber, setStreamEpisodeNumber] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [animeTitle, setAnimeTitle] = useState(animeId || 'Anime');
+  const [animeCover, setAnimeCover] = useState('');
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const playerFrameRef = useRef<HTMLIFrameElement>(null);
+  const episodeNumberForHistory =
+    episodes.find((episode) => String(episode.id) === String(episodeId))?.number
+    || streamEpisodeNumber
+    || episodeId;
 
   // 1. Recupera la lista ufficiale degli episodi dell'anime per la navigazione
   useEffect(() => {
@@ -108,6 +117,81 @@ export default function WatchPage({
 
     fetchStream();
   }, [animeId, episodeId]);
+
+  useEffect(() => {
+    if (!animeId) return;
+    getAnimeDetails(animeId)
+      .then((data) => {
+        const anime = data.anime || data.data;
+        if (anime?.title) setAnimeTitle(anime.title);
+        if (anime?.cover) setAnimeCover(anime.cover);
+      })
+      .catch((err) => console.error('Errore recuperando i metadati per la cronologia:', err));
+  }, [animeId]);
+
+  useEffect(() => {
+    if (!animeId || !episodeId || !videoUrl) return;
+
+    const previous = getContinueWatching().find(
+      (item) => item.animeId === animeId && item.episodeId === episodeId
+    );
+    const save = (currentTime: number, duration: number, paused: boolean) => {
+      if (!Number.isFinite(currentTime) || currentTime < 0) return;
+      const safeDuration = Number.isFinite(duration) && duration > 0 ? duration : 0;
+      saveContinueWatching({
+        animeId,
+        episodeId,
+        title: animeTitle,
+        cover: animeCover,
+        episodeNumber: String(episodeNumberForHistory),
+        currentTime,
+        duration: safeDuration,
+        completed: safeDuration > 0 && currentTime >= safeDuration - 15,
+        updatedAt: Date.now()
+      });
+      void paused;
+    };
+
+    const handleMessage = (event: MessageEvent) => {
+      if (event.source !== playerFrameRef.current?.contentWindow) return;
+      const data = event.data as { type?: string; currentTime?: number; duration?: number; paused?: boolean };
+      if (data.type === 'animewall-playback' && typeof data.currentTime === 'number') {
+        save(data.currentTime, data.duration || 0, Boolean(data.paused));
+      }
+    };
+
+    const restoreFrame = () => {
+      if (previous && previous.currentTime > 5) {
+        playerFrameRef.current?.contentWindow?.postMessage(
+          { type: 'animewall-control', currentTime: previous.currentTime, paused: true },
+          window.location.origin
+        );
+      }
+    };
+
+    const video = videoRef.current;
+    const restoreVideo = () => {
+      if (video && previous && previous.currentTime > 5) video.currentTime = previous.currentTime;
+    };
+    const saveVideo = () => {
+      if (video) save(video.currentTime, video.duration, video.paused);
+    };
+
+    window.addEventListener('message', handleMessage);
+    video?.addEventListener('loadedmetadata', restoreVideo);
+    video?.addEventListener('timeupdate', saveVideo);
+    video?.addEventListener('pause', saveVideo);
+    video?.addEventListener('ended', saveVideo);
+    restoreFrame();
+
+    return () => {
+      window.removeEventListener('message', handleMessage);
+      video?.removeEventListener('loadedmetadata', restoreVideo);
+      video?.removeEventListener('timeupdate', saveVideo);
+      video?.removeEventListener('pause', saveVideo);
+      video?.removeEventListener('ended', saveVideo);
+    };
+  }, [animeId, episodeId, videoUrl, animeTitle, animeCover, episodeNumberForHistory]);
 
   // 3. Calcola l'episodio precedente e successivo cercando nell'array reale
   const currentEpIndex = episodes.findIndex(
@@ -187,6 +271,7 @@ const isDirectMedia = videoUrl.includes('.mp4') || videoUrl.includes('.m3u8');
 
                 {isDirectMedia ? (
                   <video
+                    ref={videoRef}
                     src={finalVideoUrl}
                     controls
                     autoPlay
@@ -198,6 +283,18 @@ const isDirectMedia = videoUrl.includes('.mp4') || videoUrl.includes('.m3u8');
                 ) : (
 
                     <iframe
+            ref={playerFrameRef}
+            onLoad={() => {
+              const previous = getContinueWatching().find(
+                (item) => item.animeId === animeId && item.episodeId === episodeId
+              );
+              if (previous && previous.currentTime > 5) {
+                playerFrameRef.current?.contentWindow?.postMessage(
+                  { type: 'animewall-control', currentTime: previous.currentTime, paused: true },
+                  window.location.origin
+                );
+              }
+            }}
             src={finalVideoUrl}
             className="w-full h-full border-0"
             allowFullScreen

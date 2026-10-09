@@ -97,7 +97,8 @@ const playerBridge = `<script>
       {
         type: 'animewall-playback',
         currentTime: video.currentTime,
-        paused: video.paused
+        paused: video.paused,
+        duration: Number.isFinite(video.duration) ? video.duration : 0
       },
       window.location.origin
     );
