@@ -124,7 +124,9 @@ export default function WatchPage({
       .then((data) => {
         const anime = data.anime || data.data;
         if (anime?.title) setAnimeTitle(anime.title);
-        if (anime?.cover) setAnimeCover(anime.cover);
+        if (anime?.cover || anime?.coverUrl || anime?.image) {
+          setAnimeCover(anime.cover || anime.coverUrl || anime.image);
+        }
       })
       .catch((err) => console.error('Errore recuperando i metadati per la cronologia:', err));
   }, [animeId]);
@@ -184,6 +186,9 @@ export default function WatchPage({
     video?.addEventListener('pause', saveVideo);
     video?.addEventListener('ended', saveVideo);
     restoreFrame();
+    const restoreTimers = previous && previous.currentTime > 5
+      ? [150, 500, 1200].map((delay) => window.setTimeout(restoreFrame, delay))
+      : [];
 
     return () => {
       window.removeEventListener('message', handleMessage);
@@ -191,6 +196,7 @@ export default function WatchPage({
       video?.removeEventListener('timeupdate', saveVideo);
       video?.removeEventListener('pause', saveVideo);
       video?.removeEventListener('ended', saveVideo);
+      restoreTimers.forEach((timer) => window.clearTimeout(timer));
     };
   }, [animeId, episodeId, videoUrl, animeTitle, animeCover, episodeNumberForHistory]);
 

@@ -6,6 +6,7 @@ import {
   CONTINUE_WATCHING_EVENT,
   getContinueWatching,
   removeContinueWatching,
+  saveContinueWatching,
   type ContinueWatchingItem
 } from '@/lib/continue-watching';
 
@@ -44,6 +45,33 @@ export default function HomePage() {
       window.removeEventListener('storage', update);
     };
   }, []);
+
+  useEffect(() => {
+    const itemsWithoutCover = continueWatching.filter((item) => !item.cover).slice(0, 12);
+    if (itemsWithoutCover.length === 0) return;
+
+    let cancelled = false;
+    Promise.all(itemsWithoutCover.map(async (item) => {
+      try {
+        const response = await fetch(`/api/anime/${encodeURIComponent(item.animeId)}`);
+        if (!response.ok) return;
+        const data = await response.json();
+        const anime = data.anime || data.data;
+        const cover = anime?.cover || anime?.coverUrl || anime?.image;
+        if (!cancelled && cover) {
+          saveContinueWatching({
+            ...item,
+            title: anime?.title || item.title,
+            cover
+          });
+        }
+      } catch (error) {
+        console.error('Impossibile aggiornare la copertina della cronologia:', error);
+      }
+    }));
+
+    return () => { cancelled = true; };
+  }, [continueWatching]);
 
   useEffect(() => {
     const fetchData = async () => {

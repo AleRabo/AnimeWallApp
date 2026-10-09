@@ -1,6 +1,6 @@
 {
   "name": "animewall",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "AnimeWall desktop app",
   "scripts": {
     "dev": "next dev",
