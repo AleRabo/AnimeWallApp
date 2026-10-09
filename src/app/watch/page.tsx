@@ -177,6 +177,7 @@ export default function WatchPage({
       if (video) save(video.currentTime, video.duration, video.paused);
     };
 
+    save(previous?.currentTime || 0, previous?.duration || 0, true);
     window.addEventListener('message', handleMessage);
     video?.addEventListener('loadedmetadata', restoreVideo);
     video?.addEventListener('timeupdate', saveVideo);
