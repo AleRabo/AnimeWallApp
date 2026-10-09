@@ -48,6 +48,25 @@ percentuale, durata, posizione corrente e data dell'ultimo aggiornamento vengono
 salvati nel `localStorage` del dispositivo. I dati non vengono inviati a
 Supabase o ad altri servizi e possono essere rimossi singolarmente dalla home.
 
+## App Android
+
+Il progetto Android si trova nella cartella [`android`](./android). È un APK
+leggero che apre il sito AnimeWall ufficiale, quindi usa la stessa interfaccia,
+le stesse API AnimeWorld e Watch Together del PC. La cronologia locale resta
+separata per dispositivo; per sincronizzare anche il minutaggio tra PC e
+Android servirà in seguito un account o una sincronizzazione cloud dedicata.
+
+Per creare una release Android:
+
+```bash
+git tag android-v1.0.0
+git push origin android-v1.0.0
+```
+
+La GitHub Action pubblica automaticamente l'APK nella release GitHub. L'app
+controlla le nuove release Android all'avvio e propone il download; Android
+richiede comunque la conferma dell'utente per installare un APK aggiornato.
+
 ## Aggiornamenti automatici
 
 Gli aggiornamenti dell'app desktop vengono pubblicati come GitHub Release nella
