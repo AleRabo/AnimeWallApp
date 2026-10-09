@@ -15,12 +15,9 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.content.FileProvider;
-
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import java.io.File;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
@@ -29,10 +26,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class MainActivity extends AppCompatActivity {
-    private static final String SITE_URL = "https://animewall.vercel.app";
+    private static final String SITE_URL = "https://animewall-mvy7.onrender.com";
     private static final String RELEASES_URL =
             "https://api.github.com/repos/AleRabo/AnimeWallApp/releases?per_page=20";
-    private static final int VERSION_CODE = 100;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private WebView webView;
 
@@ -57,7 +53,7 @@ public class MainActivity extends AppCompatActivity {
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 Uri uri = request.getUrl();
                 if ("https".equals(uri.getScheme()) && uri.getHost() != null
-                        && (uri.getHost().equals("animewall.vercel.app")
+                        && (uri.getHost().equals("animewall-mvy7.onrender.com")
                         || uri.getHost().endsWith("animeworld.ac"))) {
                     return false;
                 }
@@ -94,7 +90,7 @@ public class MainActivity extends AppCompatActivity {
                         String name = asset.optString("name");
                         if (name.startsWith("AnimeWall-android-") && name.endsWith(".apk")) {
                             int versionCode = parseVersionCode(release.optString("tag_name"));
-                            if (versionCode > VERSION_CODE) {
+                            if (versionCode > BuildConfig.VERSION_CODE) {
                                 runOnUiThread(() -> showUpdateDialog(asset.optString("browser_download_url"), name));
                             }
 
@@ -116,7 +112,7 @@ public class MainActivity extends AppCompatActivity {
                     + Integer.parseInt(parts[1]) * 10
                     + Integer.parseInt(parts[2]);
         } catch (Exception ignored) {
-            return VERSION_CODE;
+            return BuildConfig.VERSION_CODE;
         }
     }
 
