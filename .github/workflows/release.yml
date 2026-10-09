@@ -35,8 +35,8 @@ jobs:
             throw "Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY repository secret."
           }
 
-      - name: Build Next.js
-        run: npm run build
+      - name: Build Next.js standalone app
+        run: npm run desktop:build
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}

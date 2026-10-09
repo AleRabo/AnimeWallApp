@@ -1,15 +1,16 @@
 {
   "name": "animewall",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "AnimeWall desktop app",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "desktop:dev": "electron .",
-    "desktop:build": "npm run build",
+    "desktop:build": "npm run build && npm run desktop:prepare",
     "desktop:start": "electron . --production",
-    "desktop:dist": "npm run build && electron-builder --win"
+    "desktop:dist": "npm run desktop:build && electron-builder --win",
+    "desktop:prepare": "node scripts/prepare-standalone.mjs"
   },
   "type": "module",
   "main": "electron/main.mjs",
@@ -40,17 +41,32 @@
   "build": {
     "appId": "it.animewall.desktop",
     "productName": "AnimeWall",
-    "asar": false,
+    "asar": true,
+    "disableDefaultIgnoredFiles": true,
     "artifactName": "AnimeWall-${version}-setup.${ext}",
     "files": [
       "electron/**/*",
-      "src/**/*",
-      "public/**/*",
-      ".next/**/*",
-      "next.config.js",
       "package.json",
-      "node_modules/**/*",
-      "!**/.env.local"
+      "node_modules/electron-updater/**/*",
+      "node_modules/builder-util-runtime/**/*",
+      "node_modules/fs-extra/**/*",
+      "node_modules/js-yaml/**/*",
+      "node_modules/lazy-val/**/*",
+      "node_modules/lodash.escaperegexp/**/*",
+      "node_modules/lodash.isequal/**/*",
+      "node_modules/semver/**/*",
+      "node_modules/tiny-typed-emitter/**/*",
+      "node_modules/debug/**/*",
+      "node_modules/sax/**/*"
+    ],
+    "asarUnpack": [
+      "electron/vendor/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": ".next/standalone",
+        "to": "standalone"
+      }
     ],
     "extraMetadata": {
       "main": "electron/main.mjs"

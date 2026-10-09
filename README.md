@@ -38,6 +38,11 @@ La finestra desktop carica sempre il server Next.js locale su `127.0.0.1:3210`.
 Le API server-side continuano a interrogare AnimeWorld, mentre la chat Watch
 Together usa Supabase Realtime come nel sito originale.
 
+La build desktop usa il runtime standalone di Next.js e un pacchetto ASAR per
+evitare di distribuire l'intero progetto di sviluppo. Electron/Chromium resta
+necessario per il funzionamento dell'app Windows, quindi l'installer non può
+avere le dimensioni di una semplice pagina web.
+
 ## Aggiornamenti automatici
 
 Gli aggiornamenti dell'app desktop vengono pubblicati come GitHub Release nella

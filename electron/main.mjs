@@ -1,17 +1,29 @@
 import { app, BrowserWindow, dialog, shell } from 'electron';
-import electronUpdater from 'electron-updater';
 import { spawn } from 'node:child_process';
 import { createConnection } from 'node:net';
+import { createRequire } from 'node:module';
+import { appendFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const projectRoot = path.resolve(__dirname, '..');
+const projectRoot = app.isPackaged
+  ? path.join(process.resourcesPath, 'standalone')
+  : path.resolve(__dirname, '..');
 const port = 3210;
 const host = '127.0.0.1';
 const isProduction = app.isPackaged || process.argv.includes('--production');
-const { autoUpdater } = electronUpdater;
+const require = createRequire(import.meta.url);
+const { autoUpdater } = require('../node_modules/electron-updater');
 let nextProcess;
+
+function writeStartupLog(message) {
+  try {
+    appendFileSync(path.join(app.getPath('logs'), 'animewall-startup.log'), `${new Date().toISOString()} ${message}\n`);
+  } catch {
+    console.error(message);
+  }
+}
 
 function configureAutoUpdates(window) {
   if (!app.isPackaged) return;
@@ -48,25 +60,35 @@ function configureAutoUpdates(window) {
 }
 
 function startNextServer() {
-  const nextCli = path.join(projectRoot, 'node_modules', 'next', 'dist', 'bin', 'next');
+  const serverPath = isProduction
+    ? path.join(projectRoot, 'server.js')
+    : path.join(projectRoot, 'node_modules', 'next', 'dist', 'bin', 'next');
   const args = isProduction
-    ? ['start', '-H', host, '-p', String(port)]
+    ? [serverPath]
     : ['dev', '-H', host, '-p', String(port)];
+  const nextCli = path.join(projectRoot, 'node_modules', 'next', 'dist', 'bin', 'next');
 
   const nodeRuntime = process.execPath;
-  nextProcess = spawn(nodeRuntime, [nextCli, ...args], {
+  nextProcess = spawn(nodeRuntime, isProduction ? args : [nextCli, ...args], {
     cwd: projectRoot,
     env: {
       ...process.env,
       BROWSER: 'none',
-      ELECTRON_RUN_AS_NODE: '1'
+      ELECTRON_RUN_AS_NODE: '1',
+      HOSTNAME: host,
+      PORT: String(port),
+      NODE_PATH: path.join(projectRoot, 'runtime_modules')
     },
-    stdio: 'inherit'
+    stdio: ['ignore', 'pipe', 'pipe']
   });
 
   nextProcess.on('error', (error) => {
+    writeStartupLog(`server error: ${error.stack || error.message}`);
     console.error('Impossibile avviare il server locale AnimeWall:', error);
   });
+  nextProcess.stdout.on('data', (chunk) => writeStartupLog(`server: ${chunk.toString().trim()}`));
+  nextProcess.stderr.on('data', (chunk) => writeStartupLog(`server stderr: ${chunk.toString().trim()}`));
+  nextProcess.on('exit', (code, signal) => writeStartupLog(`server exited: code=${code} signal=${signal}`));
 }
 
 function waitForServer() {
@@ -101,7 +123,7 @@ async function createMainWindow() {
     minWidth: 1024,
     minHeight: 700,
     backgroundColor: '#08090c',
-    icon: path.join(projectRoot, 'electron', 'icon.png'),
+    icon: path.join(__dirname, 'icon.png'),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -122,6 +144,7 @@ async function createMainWindow() {
 
 app.whenReady().then(() => {
   createMainWindow().catch((error) => {
+    writeStartupLog(`main error: ${error.stack || error.message}`);
     console.error(error);
     app.quit();
   });
