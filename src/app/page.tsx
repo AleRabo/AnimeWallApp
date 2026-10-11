@@ -20,20 +20,24 @@ interface LatestEpisode {
   isSub: boolean;
 }
 
-interface FeaturedAnime {
+interface HeroAnime {
   animeId: string;
   title: string;
   description: string;
   image: string;
+  episodeId?: string;
+  episodeNumber?: string;
 }
 
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [latestEpisodes, setLatestEpisodes] = useState<LatestEpisode[]>([]);
-  const [featuredAnime, setFeaturedAnime] = useState<FeaturedAnime | null>(null);
   const [filter, setFilter] = useState<'all' | 'sub' | 'dub'>('all');
   const [loading, setLoading] = useState(true);
   const [continueWatching, setContinueWatching] = useState<ContinueWatchingItem[]>([]);
+  const [selectedAnime, setSelectedAnime] = useState<HeroAnime | null>(null);
+  const [trailerUrl, setTrailerUrl] = useState<string | null>(null);
+  const [trailerLoading, setTrailerLoading] = useState(false);
 
   useEffect(() => {
     const update = () => setContinueWatching(getContinueWatching().filter((item) => !item.completed));
@@ -90,7 +94,9 @@ export default function HomePage() {
 
         if (featuredResponse.ok) {
           const featuredData = await featuredResponse.json();
-          if (featuredData.featured?.length > 0) setFeaturedAnime(featuredData.featured[0]);
+          if (featuredData.featured?.length > 0) {
+            setSelectedAnime(featuredData.featured[0]);
+          }
         }
       } catch (err) {
         console.error('❌ Errore durante il recupero dei dati:', err);
@@ -101,6 +107,30 @@ export default function HomePage() {
 
   fetchData();
 }, []);
+
+useEffect(() => {
+  if (!selectedAnime?.title) {
+    setTrailerUrl(null);
+    return;
+  }
+
+  let cancelled = false;
+  setTrailerLoading(true);
+  setTrailerUrl(null);
+  fetch(`/api/trailer?title=${encodeURIComponent(selectedAnime.title)}`)
+    .then((response) => response.json())
+    .then((data: { trailerUrl?: string | null }) => {
+      if (!cancelled) setTrailerUrl(data.trailerUrl || null);
+    })
+    .catch((error) => {
+      if (!cancelled) console.error('Errore caricando il trailer:', error);
+    })
+    .finally(() => {
+      if (!cancelled) setTrailerLoading(false);
+    });
+
+  return () => { cancelled = true; };
+}, [selectedAnime?.title]);
 
   // Filtraggio degli episodi (Tutti, Sub-ITA, Dub-ITA)
   const filteredEpisodes = latestEpisodes.filter((ep) => {
@@ -188,36 +218,33 @@ export default function HomePage() {
         </form>
       </section>
 
-      {/* 🎬 HERO BANNER IN EVIDENZA (Stile AnimeWall) */}
-      {featuredAnime && (
-        <section className="relative w-full rounded-3xl overflow-hidden border border-neutral-800 bg-[#12131a] shadow-2xl min-h-[320px] flex items-end">
-          {featuredAnime.image && (
-            <div className="absolute inset-0 z-0">
-              <img
-                src={featuredAnime.image}
-                alt={featuredAnime.title}
-                className="w-full h-full object-cover opacity-40 blur-sm scale-105"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#0f1015] via-[#0f1015]/70 to-transparent" />
-            </div>
+      {selectedAnime && (
+        <section className="relative isolate -mx-4 min-h-[min(70vh,620px)] overflow-hidden border-y border-neutral-800/70 bg-[#08090c] shadow-2xl sm:mx-0 sm:rounded-[2rem] sm:border">
+          {selectedAnime.image && (
+            <img src={selectedAnime.image} alt="" className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ${trailerUrl ? 'opacity-0' : 'opacity-45'}`} />
           )}
-
-          <div className="relative z-10 p-6 sm:p-10 max-w-3xl flex flex-col gap-3">
-            <h1 className="text-2xl sm:text-4xl font-black text-white tracking-tight">
-              {featuredAnime.title}
-            </h1>
-            {featuredAnime.description && (
-              <p className="text-sm sm:text-base text-neutral-300 line-clamp-3 leading-relaxed">
-                {featuredAnime.description}
-              </p>
-            )}
-            <div className="mt-2">
-              <Link
-                href={`/anime/${encodeURIComponent(featuredAnime.animeId)}`}
-                className="inline-flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-black font-black px-6 py-3 rounded-2xl transition shadow-lg shadow-orange-500/20"
-              >
-                ▶ Guarda Ora
-              </Link>
+          {trailerUrl && (
+            <iframe
+              key={trailerUrl}
+              src={`${trailerUrl}${trailerUrl.includes('?') ? '&' : '?'}autoplay=1&mute=1&controls=0&loop=1&playlist=${trailerUrl.split('/').pop()?.split('?')[0] || ''}&modestbranding=1&rel=0`}
+              title={`Trailer di ${selectedAnime.title}`}
+              className="pointer-events-none absolute inset-0 h-full w-full scale-[1.35] opacity-60"
+              allow="autoplay; encrypted-media"
+            />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-r from-[#08090c] via-[#08090c]/75 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#08090c] via-transparent to-[#08090c]/20" />
+          <div className="relative z-10 flex min-h-[min(70vh,620px)] max-w-2xl flex-col justify-end gap-4 p-6 pb-12 sm:p-12 sm:pb-16">
+            <span className="text-xs font-black uppercase tracking-[0.3em] text-orange-400">
+              {trailerLoading ? 'Caricamento anteprima' : 'In evidenza'}
+            </span>
+            <h1 className="text-4xl font-black tracking-tight text-white drop-shadow-2xl sm:text-6xl">{selectedAnime.title}</h1>
+            <p className="line-clamp-3 text-sm leading-relaxed text-neutral-200 sm:text-base">{selectedAnime.description || 'Scopri questo anime su AnimeWall.'}</p>
+            <div className="flex flex-wrap gap-3">
+              <Link href={`/anime/${encodeURIComponent(selectedAnime.animeId)}`} className="rounded-xl bg-white px-5 py-3 font-black text-black transition hover:bg-neutral-200">▶ Guarda ora</Link>
+              {selectedAnime.episodeId && (
+                <Link href={`/watch?anime=${encodeURIComponent(selectedAnime.animeId)}&ep=${encodeURIComponent(selectedAnime.episodeId)}`} className="rounded-xl border border-white/30 bg-white/10 px-5 py-3 font-black text-white backdrop-blur-md transition hover:bg-white/20">Riprendi episodio {selectedAnime.episodeNumber || ''}</Link>
+              )}
             </div>
           </div>
         </section>
@@ -278,10 +305,11 @@ export default function HomePage() {
         {!loading && (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 sm:gap-6">
             {filteredEpisodes.slice(0, 20).map((ep, index) => (
-              <Link
+              <button
                 key={`${ep.animeId}-${ep.id}-${index}`}
-                href={`/watch?anime=${encodeURIComponent(ep.animeId)}&ep=${encodeURIComponent(ep.id)}`}
-                className="group flex flex-col bg-[#151822] border border-neutral-800/80 rounded-2xl overflow-hidden hover:border-orange-500/50 hover:shadow-xl hover:shadow-orange-500/10 transition-all duration-300"
+                type="button"
+                onClick={() => setSelectedAnime({ animeId: ep.animeId, title: ep.title, description: '', image: ep.image, episodeId: ep.id, episodeNumber: ep.episodeNumber })}
+                className="group flex flex-col overflow-hidden rounded-2xl border border-neutral-800/80 bg-[#151822] text-left transition-all duration-300 hover:-translate-y-1 hover:border-orange-500/50 hover:shadow-xl hover:shadow-orange-500/10"
               >
                 {/* Immagine con Badge Ep e DUB/SUB */}
                 <div className="relative aspect-[2/3] w-full overflow-hidden bg-neutral-900">
@@ -314,7 +342,7 @@ export default function HomePage() {
                     {ep.title}
                   </h3>
                 </div>
-              </Link>
+              </button>
             ))}
           </div>
         )}

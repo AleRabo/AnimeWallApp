@@ -48,6 +48,12 @@ percentuale, durata, posizione corrente e data dell'ultimo aggiornamento vengono
 salvati nel `localStorage` del dispositivo. I dati non vengono inviati a
 Supabase o ad altri servizi e possono essere rimossi singolarmente dalla home.
 
+La home desktop include una UI ispirata ai cataloghi streaming: selezionando un
+anime si apre un hero fluido con copertina, azioni rapide e trailer YouTube
+muted in background quando disponibile. Il trailer viene richiesto solo per
+l'anime selezionato e questa modifica riguarda esclusivamente l'app desktop,
+non il sito AnimeWall.
+
 ## App Android
 
 Il progetto Android si trova nella cartella [`android`](./android). È un APK
