@@ -117,7 +117,7 @@ useEffect(() => {
   let cancelled = false;
   setTrailerLoading(true);
   setTrailerUrl(null);
-  fetch(`/api/trailer?title=${encodeURIComponent(selectedAnime.title)}`)
+  fetch(`/api/trailer?animeId=${encodeURIComponent(selectedAnime.animeId)}`)
     .then((response) => response.json())
     .then((data: { trailerUrl?: string | null }) => {
       if (!cancelled) setTrailerUrl(data.trailerUrl || null);
