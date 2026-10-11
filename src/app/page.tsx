@@ -141,7 +141,15 @@ useEffect(() => {
 
   return (
     <>
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col gap-8">
+      <main className="min-h-screen bg-[#08090c] pb-16">
+        <aside className="fixed bottom-0 left-0 right-0 z-40 flex h-16 items-center justify-around border-t border-white/10 bg-[#08090c]/90 px-3 backdrop-blur-xl md:top-0 md:h-screen md:w-20 md:flex-col md:justify-center md:gap-8 md:border-r md:border-t-0 md:bg-[#08090c]/70">
+          <Link href="/" aria-label="Home" className="text-xl text-white transition hover:text-orange-400">⌂</Link>
+          <Link href="/search" aria-label="Cerca" className="text-xl text-neutral-400 transition hover:text-white">⌕</Link>
+          <Link href="/calendar" aria-label="Calendario" className="text-xl text-neutral-400 transition hover:text-white">▦</Link>
+          <Link href="/top-anime" aria-label="Top anime" className="text-xl text-neutral-400 transition hover:text-white">★</Link>
+          <Link href="/watch-together" aria-label="Watch Together" className="text-xl text-neutral-400 transition hover:text-white">♧</Link>
+        </aside>
+        <div className="mx-auto flex max-w-[1600px] flex-col gap-10 px-4 py-6 sm:px-8 md:pl-28">
         
         <p className="mx-auto max-w-4xl rounded-2xl border border-neutral-800 bg-[#0f1117] px-5 py-4 text-center text-sm leading-relaxed text-neutral-300">
           Questo sito offre anime gratis, ma ricorda che se hai possibilità supporta gli studi d'animazione usando siti officiali.
@@ -156,7 +164,7 @@ useEffect(() => {
               </h2>
               <span className="text-xs font-bold text-neutral-500">Salvato su questo dispositivo</span>
             </div>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+            <div className="flex snap-x gap-4 overflow-x-auto pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {continueWatching.slice(0, 12).map((item) => {
                 const progress = item.duration > 0
                   ? Math.min(100, Math.round((item.currentTime / item.duration) * 100))
@@ -164,7 +172,7 @@ useEffect(() => {
                 return (
                   <div key={`${item.animeId}-${item.episodeId}`} className="group relative overflow-hidden rounded-2xl border border-neutral-800 bg-[#151822]">
                     <Link href={`/watch?anime=${encodeURIComponent(item.animeId)}&ep=${encodeURIComponent(item.episodeId)}`}>
-                      <div className="relative aspect-[2/3] bg-neutral-900">
+                      <div className="relative aspect-[2/3] w-36 bg-neutral-900 sm:w-44">
                         {item.cover ? <img src={item.cover} alt={item.title} className="h-full w-full object-cover transition group-hover:scale-105" /> : (
                           <div className="flex h-full items-center justify-center p-3 text-center text-xs font-bold text-neutral-500">Nessuna copertina</div>
                         )}
@@ -224,21 +232,23 @@ useEffect(() => {
             <img src={selectedAnime.image} alt="" className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ${trailerUrl ? 'opacity-0' : 'opacity-45'}`} />
           )}
           {trailerUrl && (
+            <div className="animewall-trailer absolute inset-0 overflow-hidden">
             <iframe
               key={trailerUrl}
-              src={`${trailerUrl}${trailerUrl.includes('?') ? '&' : '?'}autoplay=1&mute=1&controls=0&loop=1&playlist=${trailerUrl.split('/').pop()?.split('?')[0] || ''}&modestbranding=1&rel=0`}
+              src={`${trailerUrl}${trailerUrl.includes('?') ? '&' : '?'}autoplay=1&mute=1&controls=0&disablekb=1&fs=0&iv_load_policy=3&cc_load_policy=0&playsinline=1&loop=1&playlist=${trailerUrl.split('/').pop()?.split('?')[0] || ''}&modestbranding=1&rel=0`}
               title={`Trailer di ${selectedAnime.title}`}
-              className="pointer-events-none absolute inset-0 h-full w-full scale-[1.35] opacity-60"
+              className="pointer-events-none absolute -inset-[8%] h-[116%] w-[116%] scale-[1.18] opacity-60"
               allow="autoplay; encrypted-media"
             />
+            </div>
           )}
           <div className="absolute inset-0 bg-gradient-to-r from-[#08090c] via-[#08090c]/75 to-transparent" />
           <div className="absolute inset-0 bg-gradient-to-t from-[#08090c] via-transparent to-[#08090c]/20" />
-          <div className="relative z-10 flex min-h-[min(70vh,620px)] max-w-2xl flex-col justify-end gap-4 p-6 pb-12 sm:p-12 sm:pb-16">
+          <div className="relative z-10 flex min-h-[min(76vh,700px)] max-w-2xl flex-col justify-end gap-4 p-6 pb-14 sm:p-14 sm:pb-20">
             <span className="text-xs font-black uppercase tracking-[0.3em] text-orange-400">
               {trailerLoading ? 'Caricamento anteprima' : 'In evidenza'}
             </span>
-            <h1 className="text-4xl font-black tracking-tight text-white drop-shadow-2xl sm:text-6xl">{selectedAnime.title}</h1>
+            <h1 className="max-w-xl text-5xl font-black tracking-tight text-white drop-shadow-2xl sm:text-7xl">{selectedAnime.title}</h1>
             <p className="line-clamp-3 text-sm leading-relaxed text-neutral-200 sm:text-base">{selectedAnime.description || 'Scopri questo anime su AnimeWall.'}</p>
             <div className="flex flex-wrap gap-3">
               <Link href={`/anime/${encodeURIComponent(selectedAnime.animeId)}`} className="rounded-xl bg-white px-5 py-3 font-black text-black transition hover:bg-neutral-200">▶ Guarda ora</Link>
@@ -303,13 +313,13 @@ useEffect(() => {
 
         {/* Griglia Card Episodi */}
         {!loading && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 sm:gap-6">
+          <div className="flex snap-x gap-4 overflow-x-auto pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {filteredEpisodes.slice(0, 20).map((ep, index) => (
               <button
                 key={`${ep.animeId}-${ep.id}-${index}`}
                 type="button"
                 onClick={() => setSelectedAnime({ animeId: ep.animeId, title: ep.title, description: '', image: ep.image, episodeId: ep.id, episodeNumber: ep.episodeNumber })}
-                className="group flex flex-col overflow-hidden rounded-2xl border border-neutral-800/80 bg-[#151822] text-left transition-all duration-300 hover:-translate-y-1 hover:border-orange-500/50 hover:shadow-xl hover:shadow-orange-500/10"
+                className="group flex w-36 shrink-0 snap-start flex-col overflow-hidden rounded-xl border border-neutral-800/80 bg-[#151822] text-left transition-all duration-300 hover:-translate-y-1 hover:border-orange-500/50 hover:shadow-xl hover:shadow-orange-500/10 sm:w-44"
               >
                 {/* Immagine con Badge Ep e DUB/SUB */}
                 <div className="relative aspect-[2/3] w-full overflow-hidden bg-neutral-900">
@@ -347,6 +357,7 @@ useEffect(() => {
           </div>
         )}
       </section>
+        </div>
       </main>
     </>
   );
