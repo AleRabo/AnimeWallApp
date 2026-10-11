@@ -164,7 +164,7 @@ useEffect(() => {
               </h2>
               <span className="text-xs font-bold text-neutral-500">Salvato su questo dispositivo</span>
             </div>
-            <div className="flex snap-x gap-4 overflow-x-auto pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div data-horizontal-row className="flex snap-x gap-4 overflow-x-auto pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {continueWatching.slice(0, 12).map((item) => {
                 const progress = item.duration > 0
                   ? Math.min(100, Math.round((item.currentTime / item.duration) * 100))
@@ -313,7 +313,7 @@ useEffect(() => {
 
         {/* Griglia Card Episodi */}
         {!loading && (
-          <div className="flex snap-x gap-4 overflow-x-auto pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div data-horizontal-row className="flex snap-x gap-4 overflow-x-auto pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {filteredEpisodes.slice(0, 20).map((ep, index) => (
               <button
                 key={`${ep.animeId}-${ep.id}-${index}`}
