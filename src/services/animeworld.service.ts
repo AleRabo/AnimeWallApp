@@ -673,7 +673,10 @@ export class AnimeWallService {
 
       $('.server .episodes a, #episodes .episode a, .episodes-list a').each((_, el) => {
         const attrNum = $(el).attr('data-episode-num');
-        const epNum = pickFirst(attrNum, $(el).text().trim());
+        const textNum = $(el).text().trim().match(/(?:episodio|ep\.?)\s*(\d+(?:\.\d+)?)/i)?.[1]
+          || $(el).text().trim().match(/^\s*(\d+(?:\.\d+)?)\s*$/)?.[1]
+          || '';
+        const epNum = pickFirst(attrNum, textNum);
 
         const epHrefAttr = $(el).attr('href');
         const epHref = pickFirst(epHrefAttr);

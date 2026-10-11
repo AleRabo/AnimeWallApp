@@ -29,8 +29,12 @@ interface HeroAnime {
   episodeNumber?: string;
 }
 
+function displayEpisodeNumber(value: string) {
+  const normalized = value.trim().replace(/^episodio\s*/i, '');
+  return /^\d+(?:\.\d+)?$/.test(normalized) ? normalized : '?';
+}
+
 export default function HomePage() {
-  const [searchQuery, setSearchQuery] = useState('');
   const [latestEpisodes, setLatestEpisodes] = useState<LatestEpisode[]>([]);
   const [filter, setFilter] = useState<'all' | 'sub' | 'dub'>('all');
   const [loading, setLoading] = useState(true);
@@ -71,6 +75,31 @@ export default function HomePage() {
         }
       } catch (error) {
         console.error('Impossibile aggiornare la copertina della cronologia:', error);
+      }
+    }));
+
+    return () => { cancelled = true; };
+  }, [continueWatching]);
+
+  useEffect(() => {
+    const itemsWithoutEpisodeNumber = continueWatching
+      .filter((item) => !/^\d+(?:\.\d+)?$/.test(item.episodeNumber.trim()))
+      .slice(0, 12);
+    if (itemsWithoutEpisodeNumber.length === 0) return;
+
+    let cancelled = false;
+    Promise.all(itemsWithoutEpisodeNumber.map(async (item) => {
+      try {
+        const response = await fetch(`/api/anime/${encodeURIComponent(item.animeId)}/episodes`);
+        if (!response.ok) return;
+        const data = await response.json();
+        const episode = data.episodes?.find((entry: { id?: string; number?: string }) => String(entry.id) === item.episodeId);
+        const number = episode?.number?.match(/\d+(?:\.\d+)?/)?.[0];
+        if (!cancelled && number) {
+          saveContinueWatching({ ...item, episodeNumber: number });
+        }
+      } catch (error) {
+        console.error('Impossibile correggere il numero episodio:', error);
       }
     }));
 
@@ -142,92 +171,14 @@ useEffect(() => {
   return (
     <>
       <main className="min-h-screen bg-[#08090c] pb-16">
-        <aside className="fixed bottom-0 left-0 right-0 z-40 flex h-16 items-center justify-around border-t border-white/10 bg-[#08090c]/90 px-3 backdrop-blur-xl md:top-0 md:h-screen md:w-20 md:flex-col md:justify-center md:gap-8 md:border-r md:border-t-0 md:bg-[#08090c]/70">
-          <Link href="/" aria-label="Home" className="text-xl text-white transition hover:text-orange-400">⌂</Link>
-          <Link href="/search" aria-label="Cerca" className="text-xl text-neutral-400 transition hover:text-white">⌕</Link>
-          <Link href="/calendar" aria-label="Calendario" className="text-xl text-neutral-400 transition hover:text-white">▦</Link>
-          <Link href="/top-anime" aria-label="Top anime" className="text-xl text-neutral-400 transition hover:text-white">★</Link>
-          <Link href="/watch-together" aria-label="Watch Together" className="text-xl text-neutral-400 transition hover:text-white">♧</Link>
-        </aside>
-        <div className="mx-auto flex max-w-[1600px] flex-col gap-10 px-4 py-6 sm:px-8 md:pl-28">
+        <div className="mx-auto flex max-w-[1600px] flex-col gap-6 px-4 py-4 sm:px-8">
         
         <p className="mx-auto max-w-4xl rounded-2xl border border-neutral-800 bg-[#0f1117] px-5 py-4 text-center text-sm leading-relaxed text-neutral-300">
           Questo sito offre anime gratis, ma ricorda che se hai possibilità supporta gli studi d'animazione usando siti officiali.
         </p>
 
-        {continueWatching.length > 0 && (
-          <section className="flex flex-col gap-5">
-            <div className="flex items-center justify-between border-b border-neutral-800 pb-4">
-              <h2 className="flex items-center gap-2 text-xl font-black uppercase tracking-wider text-white">
-                <span className="inline-block h-6 w-2.5 rounded-full bg-orange-500" />
-                Continua a guardare
-              </h2>
-              <span className="text-xs font-bold text-neutral-500">Salvato su questo dispositivo</span>
-            </div>
-            <div data-horizontal-row className="flex snap-x gap-4 overflow-x-auto pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {continueWatching.slice(0, 12).map((item) => {
-                const progress = item.duration > 0
-                  ? Math.min(100, Math.round((item.currentTime / item.duration) * 100))
-                  : 0;
-                return (
-                  <div key={`${item.animeId}-${item.episodeId}`} className="group relative overflow-hidden rounded-2xl border border-neutral-800 bg-[#151822]">
-                    <Link href={`/watch?anime=${encodeURIComponent(item.animeId)}&ep=${encodeURIComponent(item.episodeId)}`}>
-                      <div className="relative aspect-[2/3] w-36 bg-neutral-900 sm:w-44">
-                        {item.cover ? <img src={item.cover} alt={item.title} className="h-full w-full object-cover transition group-hover:scale-105" /> : (
-                          <div className="flex h-full items-center justify-center p-3 text-center text-xs font-bold text-neutral-500">Nessuna copertina</div>
-                        )}
-                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/70 to-transparent p-3 pt-12">
-                          <p className="line-clamp-2 text-sm font-black text-white">{item.title}</p>
-                          <p className="mt-1 text-xs font-bold text-orange-400">Episodio {item.episodeNumber || '?'}</p>
-                        </div>
-                      </div>
-                      <div className="h-1 bg-neutral-800"><div className="h-full bg-orange-500" style={{ width: `${progress}%` }} /></div>
-                      <p className="px-3 py-2 text-xs font-bold text-neutral-400">{progress > 0 ? `${progress}% completato` : 'Non ancora iniziato'}</p>
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={() => removeContinueWatching(item.animeId, item.episodeId)}
-                      aria-label={`Rimuovi ${item.title} dalla cronologia`}
-                      className="absolute right-2 top-2 rounded-lg bg-black/70 px-2 py-1 text-xs font-black text-white opacity-0 transition hover:bg-red-500 group-hover:opacity-100"
-                    >
-                      ×
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-        )}
-
-        {/* 🔍 BARRA DI RICERCA */}
-      <section className="w-full">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (searchQuery.trim()) {
-              window.location.href = `/search?q=${encodeURIComponent(searchQuery.trim())}`;
-            }
-          }}
-          className="relative max-w-3xl mx-auto"
-        >
-          <input
-            type="text"
-            placeholder="Cerca un anime per titolo..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-[#151822] border border-neutral-800 rounded-2xl px-6 py-4 text-white placeholder-neutral-500 focus:outline-none focus:border-orange-500 transition shadow-xl text-lg"
-          />
-          <button
-            type="submit"
-            className="absolute right-3 top-1/2 -translate-y-1/2 bg-orange-500 hover:bg-orange-600 text-black font-extrabold px-6 py-2.5 rounded-xl transition shadow-lg shadow-orange-500/20"
-          >
-            Cerca
-          </button>
-        </form>
-      </section>
-
       {selectedAnime && (
-        <section className="relative isolate -mx-4 min-h-[min(70vh,620px)] overflow-hidden border-y border-neutral-800/70 bg-[#08090c] shadow-2xl sm:mx-0 sm:rounded-[2rem] sm:border">
+        <section className="relative isolate -mx-4 min-h-[min(58vh,540px)] overflow-hidden border-y border-neutral-800/70 bg-[#08090c] shadow-2xl sm:mx-0 sm:rounded-[2rem] sm:border">
           {selectedAnime.image && (
             <img src={selectedAnime.image} alt="" className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ${trailerUrl ? 'opacity-0' : 'opacity-45'}`} />
           )}
@@ -244,7 +195,7 @@ useEffect(() => {
           )}
           <div className="absolute inset-0 bg-gradient-to-r from-[#08090c] via-[#08090c]/75 to-transparent" />
           <div className="absolute inset-0 bg-gradient-to-t from-[#08090c] via-transparent to-[#08090c]/20" />
-          <div className="relative z-10 flex min-h-[min(76vh,700px)] max-w-2xl flex-col justify-end gap-4 p-6 pb-14 sm:p-14 sm:pb-20">
+          <div className="relative z-10 flex min-h-[min(58vh,540px)] max-w-2xl flex-col justify-end gap-3 p-6 pb-10 sm:p-12 sm:pb-12">
             <span className="text-xs font-black uppercase tracking-[0.3em] text-orange-400">
               {trailerLoading ? 'Caricamento anteprima' : 'In evidenza'}
             </span>
@@ -313,7 +264,16 @@ useEffect(() => {
 
         {/* Griglia Card Episodi */}
         {!loading && (
-          <div data-horizontal-row className="flex snap-x gap-4 overflow-x-auto pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div
+            data-horizontal-row
+            onWheel={(event) => {
+              if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) {
+                event.preventDefault();
+                event.currentTarget.scrollBy({ left: event.deltaY * 2, behavior: 'smooth' });
+              }
+            }}
+            className="flex snap-x gap-4 overflow-x-auto scroll-smooth pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
             {filteredEpisodes.slice(0, 20).map((ep, index) => (
               <button
                 key={`${ep.animeId}-${ep.id}-${index}`}
@@ -357,6 +317,59 @@ useEffect(() => {
           </div>
         )}
       </section>
+
+        {continueWatching.length > 0 && (
+          <section className="flex flex-col gap-5">
+            <div className="flex items-center justify-between border-b border-neutral-800 pb-4">
+              <h2 className="flex items-center gap-2 text-xl font-black uppercase tracking-wider text-white">
+                <span className="inline-block h-6 w-2.5 rounded-full bg-orange-500" />
+                Continua a guardare
+              </h2>
+              <span className="text-xs font-bold text-neutral-500">Salvato su questo dispositivo</span>
+            </div>
+            <div
+              data-horizontal-row
+              onWheel={(event) => {
+                if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) {
+                  event.preventDefault();
+                  event.currentTarget.scrollBy({ left: event.deltaY * 2, behavior: 'smooth' });
+                }
+              }}
+              className="flex snap-x gap-4 overflow-x-auto scroll-smooth pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            >
+              {continueWatching.slice(0, 12).map((item) => {
+                const progress = item.duration > 0
+                  ? Math.min(100, Math.round((item.currentTime / item.duration) * 100))
+                  : 0;
+                return (
+                  <div key={`${item.animeId}-${item.episodeId}`} className="group relative isolate shrink-0 overflow-hidden rounded-2xl border border-neutral-800 bg-[#151822] shadow-lg shadow-black/20 transition-shadow duration-300 hover:shadow-xl hover:shadow-black/35">
+                    <Link href={`/watch?anime=${encodeURIComponent(item.animeId)}&ep=${encodeURIComponent(item.episodeId)}&n=${encodeURIComponent(displayEpisodeNumber(item.episodeNumber))}`}>
+                      <div className="relative aspect-[2/3] w-36 bg-neutral-900 sm:w-44">
+                        {item.cover ? <img src={item.cover} alt={item.title} className="relative z-0 h-full w-full object-cover transition-[filter] duration-300 ease-out group-hover:brightness-110" /> : (
+                          <div className="flex h-full items-center justify-center p-3 text-center text-xs font-bold text-neutral-500">Nessuna copertina</div>
+                        )}
+                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/70 to-transparent p-3 pt-12">
+                          <p className="line-clamp-2 text-sm font-black text-white">{item.title}</p>
+                          <p className="mt-1 text-xs font-bold text-orange-400">Ep {displayEpisodeNumber(item.episodeNumber)}</p>
+                        </div>
+                      </div>
+                      <div className="h-1 bg-neutral-800"><div className="h-full bg-orange-500" style={{ width: `${progress}%` }} /></div>
+                      <p className="px-3 py-2 text-xs font-bold text-neutral-400">{progress > 0 ? `${progress}% completato` : 'Non ancora iniziato'}</p>
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => removeContinueWatching(item.animeId, item.episodeId)}
+                      aria-label={`Rimuovi ${item.title} dalla cronologia`}
+                      className="absolute right-2 top-2 rounded-lg bg-black/70 px-2 py-1 text-xs font-black text-white opacity-0 transition hover:bg-red-500 group-hover:opacity-100"
+                    >
+                      ×
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
         </div>
       </main>
     </>

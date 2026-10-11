@@ -95,6 +95,15 @@ html[data-theme="pink"] [class~="bg-[#08090c]"] {
   background-color: var(--aw-page) !important;
 }
 
+html[data-theme="green"] [class~="bg-black/95"],
+html[data-theme="pink"] [class~="bg-black/95"],
+html[data-theme="green"] [class~="bg-[#08090c]/95"],
+html[data-theme="pink"] [class~="bg-[#08090c]/95"],
+html[data-theme="green"] [class~="bg-[#08090c]/90"],
+html[data-theme="pink"] [class~="bg-[#08090c]/90"] {
+  background-color: color-mix(in srgb, var(--aw-panel) 94%, transparent) !important;
+}
+
 html[data-theme] [class~="bg-[#0f1117]"],
 html[data-theme] [class~="bg-[#0f1117]/80"] {
   background-color: var(--aw-panel) !important;
@@ -102,8 +111,13 @@ html[data-theme] [class~="bg-[#0f1117]/80"] {
 
 html[data-theme] [class~="bg-[#151822]"],
 html[data-theme] [class~="bg-neutral-900"],
+html[data-theme] [class~="bg-neutral-900/90"],
 html[data-theme] [class~="bg-neutral-900/50"] {
   background-color: var(--aw-surface) !important;
+}
+
+html[data-theme] [class~="bg-[#08090d]/80"] {
+  background-color: color-mix(in srgb, var(--aw-page) 88%, var(--aw-raised)) !important;
 }
 
 html[data-theme] [class~="bg-[#1a1e2a]"],
@@ -135,9 +149,16 @@ html[data-theme="pink"] [class~="text-neutral-300"] {
 
 html[data-theme="green"] [class~="text-neutral-400"],
 html[data-theme="green"] [class~="text-neutral-500"],
+html[data-theme="green"] [class~="text-neutral-300"],
 html[data-theme="pink"] [class~="text-neutral-400"],
-html[data-theme="pink"] [class~="text-neutral-500"] {
+html[data-theme="pink"] [class~="text-neutral-500"],
+html[data-theme="pink"] [class~="text-neutral-300"] {
   color: #76666a !important;
+}
+
+html[data-theme="green"] [class~="text-white"],
+html[data-theme="pink"] [class~="text-white"] {
+  color: var(--aw-copy) !important;
 }
 
 html[data-theme="green"] select,

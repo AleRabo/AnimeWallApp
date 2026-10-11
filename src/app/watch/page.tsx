@@ -16,14 +16,20 @@ interface ServerOption {
   name: string;
 }
 
+function validEpisodeNumber(value: string | number | undefined) {
+  const normalized = String(value || '').trim().replace(/^episodio\s*/i, '');
+  return /^\d+(?:\.\d+)?$/.test(normalized) ? normalized : '';
+}
+
 export default function WatchPage({
   searchParams,
 }: {
-  searchParams: Promise<{ anime?: string; ep?: string }>;
+  searchParams: Promise<{ anime?: string; ep?: string; n?: string }>;
 }) {
   const resolvedParams = use(searchParams);
   const animeId = resolvedParams.anime || '';
   const episodeId = resolvedParams.ep || '';
+  const requestedEpisodeNumber = resolvedParams.n || '';
 
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [servers, setServers] = useState<ServerOption[]>([]);
@@ -39,9 +45,10 @@ export default function WatchPage({
   const videoRef = useRef<HTMLVideoElement>(null);
   const playerFrameRef = useRef<HTMLIFrameElement>(null);
   const episodeNumberForHistory =
-    episodes.find((episode) => String(episode.id) === String(episodeId))?.number
-    || streamEpisodeNumber
-    || episodeId;
+    validEpisodeNumber(episodes.find((episode) => String(episode.id) === String(episodeId))?.number)
+    || validEpisodeNumber(requestedEpisodeNumber)
+    || validEpisodeNumber(streamEpisodeNumber)
+    || '1';
 
   // 1. Recupera la lista ufficiale degli episodi dell'anime per la navigazione
   useEffect(() => {
@@ -70,7 +77,7 @@ export default function WatchPage({
       });
 
     return () => { cancelled = true; };
-  }, [animeId]);
+  }, [animeId, episodeId, episodeNumberForHistory]);
 
   // 2. Recupera lo stream dell'episodio
   const fetchStream = (serverId?: string) => {
@@ -123,13 +130,49 @@ export default function WatchPage({
     getAnimeDetails(animeId)
       .then((data) => {
         const anime = data.anime || data.data;
-        if (anime?.title) setAnimeTitle(anime.title);
-        if (anime?.cover || anime?.coverUrl || anime?.image) {
-          setAnimeCover(anime.cover || anime.coverUrl || anime.image);
-        }
+          const title = anime?.title || '';
+          const cover = anime?.cover || anime?.coverUrl || anime?.image || '';
+          if (title) setAnimeTitle(title);
+          if (cover) setAnimeCover(cover);
+
+          if (title || cover) {
+            const existing = getContinueWatching().find(
+              (item) => item.animeId === animeId && item.episodeId === episodeId
+            );
+            saveContinueWatching({
+              animeId,
+              episodeId,
+              title: title || existing?.title || animeId,
+              cover: cover || existing?.cover || '',
+              episodeNumber: String(existing?.episodeNumber || episodeId),
+              currentTime: existing?.currentTime || 0,
+              duration: existing?.duration || 0,
+              completed: false,
+              updatedAt: Date.now()
+            });
+          }
       })
       .catch((err) => console.error('Errore recuperando i metadati per la cronologia:', err));
   }, [animeId]);
+
+  useEffect(() => {
+    if (!animeId || !episodeId) return;
+
+    const existing = getContinueWatching().find(
+      (item) => item.animeId === animeId && item.episodeId === episodeId
+    );
+    saveContinueWatching({
+      animeId,
+      episodeId,
+      title: animeTitle || existing?.title || animeId,
+      cover: animeCover || existing?.cover || '',
+      episodeNumber: String(episodeNumberForHistory || existing?.episodeNumber || '1'),
+      currentTime: existing?.currentTime || 0,
+      duration: existing?.duration || 0,
+      completed: false,
+      updatedAt: Date.now()
+    });
+  }, [animeId, episodeId]);
 
   useEffect(() => {
     if (!animeId || !episodeId || !videoUrl) return;
