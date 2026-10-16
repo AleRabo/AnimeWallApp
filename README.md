@@ -2,4 +2,4 @@
 
 Installa l'installer e farà tutto da solo
 
-[![PyPI Downloads](https://static.pepy.tech/personalized-badge/kornia-rs?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=downloads)](https://github.com/AleRabo/AnimeWallApp/releases/tag/v1.0.15)
+[![PyPI Downloads](https://static.pepy.tech/personalized-badge/AnimeWallApp?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=downloads)](https://github.com/AleRabo/AnimeWallApp/releases/tag/v1.0.15)
