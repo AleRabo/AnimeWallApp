@@ -100,6 +100,9 @@ let homepageCache: { html: string; expiresAt: number } | null = null;
 let homepageRequest: Promise<string> | null = null;
 const malScoreCache = new Map<string, { score: string; expiresAt: number }>();
 const topAnimeCache = new Map<number, { expiresAt: number; data: MalTopAnime[] }>();
+const animeDetailsCache = new Map<string, { expiresAt: number; data: AnimeDetails }>();
+const animeDetailsRequests = new Map<string, Promise<AnimeDetails>>();
+const ANIME_DETAILS_CACHE_TTL = 10 * 60 * 1000;
 
 // Helper per selezionare il primo valore valido
 function pickFirst(...values: Array<string | undefined | null>): string {
@@ -551,6 +554,22 @@ export class AnimeWallService {
    * Estrae i dettagli di una scheda anime e la lista degli episodi
    */
   static async getAnimeDetails(id: string): Promise<AnimeDetails> {
+    const cached = animeDetailsCache.get(id);
+    if (cached && cached.expiresAt > Date.now()) return cached.data;
+
+    const pending = animeDetailsRequests.get(id);
+    if (pending) return pending;
+
+    const request = this.fetchAnimeDetails(id);
+    animeDetailsRequests.set(id, request);
+    try {
+      return await request;
+    } finally {
+      animeDetailsRequests.delete(id);
+    }
+  }
+
+  private static async fetchAnimeDetails(id: string): Promise<AnimeDetails> {
     try {
       const animeUrl = `${BASE_URL}/play/${id}`;
 
@@ -628,8 +647,8 @@ export class AnimeWallService {
 
       if (!metadata.genere) metadata.genere = genres.join(', ');
       if (!metadata.stato && status) metadata.stato = status;
-      const malScore = await getMalScore(title);
-      if (malScore) metadata.voto = malScore;
+      const cachedScore = malScoreCache.get(title.trim().toLowerCase());
+      if (cachedScore && cachedScore.expiresAt > Date.now()) metadata.voto = cachedScore.score;
 
       $('#info .row div, #info .meta-item, #info .info-item, #info dt, #info dd, #info div').each((_, el) => {
         const text = $(el).text().replace(/\s+/g, ' ').trim();
@@ -692,7 +711,7 @@ export class AnimeWallService {
         }
       });
 
-      return {
+      const details = {
         id,
         title,
         cover,
@@ -705,6 +724,9 @@ export class AnimeWallService {
         metadata,
         related
       };
+      animeDetailsCache.set(id, { data: details, expiresAt: Date.now() + ANIME_DETAILS_CACHE_TTL });
+      void getMalScore(title);
+      return details;
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Errore sconosciuto';
       console.error('Errore durante il recupero dei dettagli anime:', errorMessage);

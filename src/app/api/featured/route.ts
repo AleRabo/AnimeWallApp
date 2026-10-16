@@ -7,7 +7,7 @@ export async function GET() {
     const featured = await AnimeWallService.getFeaturedAnime();
     return Response.json(
       { success: true, featured },
-      { headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=60' } }
+      { headers: { 'Cache-Control': 'private, max-age=300, stale-while-revalidate=600' } }
     );
   } catch (err: unknown) {
     const errorMessage = err instanceof Error ? err.message : 'Errore interno';

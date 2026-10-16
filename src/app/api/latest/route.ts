@@ -7,7 +7,7 @@ export async function GET() {
     const episodes = await AnimeWallService.getLatestEpisodes();
     return Response.json(
       { success: true, count: episodes.length, episodes },
-      { headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=60' } }
+      { headers: { 'Cache-Control': 'private, max-age=120, stale-while-revalidate=300' } }
     );
   } catch (err: unknown) {
     const errorMessage = err instanceof Error ? err.message : 'Errore interno';

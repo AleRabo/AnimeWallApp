@@ -11,6 +11,9 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.webkit.WebChromeClient;
+import android.view.View;
+import android.view.ViewGroup;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
@@ -32,6 +35,8 @@ public class MainActivity extends AppCompatActivity {
     private static final int CURRENT_VERSION_CODE = 106;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private WebView webView;
+    private View fullscreenView;
+    private WebChromeClient.CustomViewCallback fullscreenCallback;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -66,6 +71,51 @@ public class MainActivity extends AppCompatActivity {
                 return true;
             }
         });
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public void onShowCustomView(View view, CustomViewCallback callback) {
+                if (fullscreenView != null) {
+                    callback.onCustomViewHidden();
+                    return;
+                }
+                fullscreenView = view;
+                fullscreenCallback = callback;
+                ((ViewGroup) webView.getParent()).addView(
+                        view,
+                        new ViewGroup.LayoutParams(
+                                ViewGroup.LayoutParams.MATCH_PARENT,
+                                ViewGroup.LayoutParams.MATCH_PARENT
+                        )
+                );
+                webView.setVisibility(View.GONE);
+                view.setVisibility(View.VISIBLE);
+                getWindow().getDecorView().setSystemUiVisibility(
+                        View.SYSTEM_UI_FLAG_FULLSCREEN
+                                | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                                | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                                | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                                | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                                | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                );
+            }
+
+            @Override
+            public void onHideCustomView() {
+                hideFullscreen();
+            }
+        });
+    }
+
+    private void hideFullscreen() {
+        if (fullscreenView == null) return;
+        ((ViewGroup) fullscreenView.getParent()).removeView(fullscreenView);
+        fullscreenView = null;
+        webView.setVisibility(View.VISIBLE);
+        getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+        if (fullscreenCallback != null) {
+            fullscreenCallback.onCustomViewHidden();
+            fullscreenCallback = null;
+        }
     }
 
     private void checkForUpdates() {
@@ -139,6 +189,10 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public void onBackPressed() {
+        if (fullscreenView != null) {
+            hideFullscreen();
+            return;
+        }
         if (webView.canGoBack()) webView.goBack();
         else super.onBackPressed();
     }
