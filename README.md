@@ -2,4 +2,5 @@
 
 Installa l'installer e farà tutto da solo
 
-[![Github All Releases](https://img.shields.io/github/downloads/AleRabo/AnimeWallApp/total.svg)](https://github.com/AleRabo/AnimeWallApp/releases/latest)
+![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/AleRabo/AnimeWallApp/total)
+(https://github.com/AleRabo/AnimeWallApp/releases/latest)
