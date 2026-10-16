@@ -20,6 +20,12 @@ interface LatestEpisode {
   isSub: boolean;
 }
 
+interface TrendingAnime {
+  animeId: string;
+  title: string;
+  image: string;
+}
+
 interface HeroAnime {
   animeId: string;
   title: string;
@@ -36,6 +42,7 @@ function displayEpisodeNumber(value: string) {
 
 export default function HomePage() {
   const [latestEpisodes, setLatestEpisodes] = useState<LatestEpisode[]>([]);
+  const [trendingAnime, setTrendingAnime] = useState<TrendingAnime[]>([]);
   const [filter, setFilter] = useState<'all' | 'sub' | 'dub'>('all');
   const [loading, setLoading] = useState(true);
   const [continueWatching, setContinueWatching] = useState<ContinueWatchingItem[]>([]);
@@ -109,9 +116,10 @@ export default function HomePage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [latestResponse, featuredResponse] = await Promise.all([
+        const [latestResponse, featuredResponse, trendingResponse] = await Promise.all([
           fetch('/api/latest'),
-          fetch('/api/featured')
+          fetch('/api/featured'),
+          fetch('/api/trending')
         ]);
 
         if (latestResponse.ok) {
@@ -125,6 +133,11 @@ export default function HomePage() {
           const featuredData = await featuredResponse.json();
           if (featuredData.featured?.length > 0) {
             setSelectedAnime(featuredData.featured[0]);
+          }
+
+          if (trendingResponse.ok) {
+            const trendingData = await trendingResponse.json();
+            if (Array.isArray(trendingData.trending)) setTrendingAnime(trendingData.trending);
           }
         }
       } catch (err) {
@@ -207,6 +220,43 @@ useEffect(() => {
                 <Link href={`/watch?anime=${encodeURIComponent(selectedAnime.animeId)}&ep=${encodeURIComponent(selectedAnime.episodeId)}`} className="rounded-xl border border-white/30 bg-white/10 px-5 py-3 font-black text-white backdrop-blur-md transition hover:bg-white/20">Riprendi episodio {selectedAnime.episodeNumber || ''}</Link>
               )}
             </div>
+          </div>
+        </section>
+      )}
+
+      {trendingAnime.length > 0 && (
+        <section className="flex flex-col gap-5">
+          <div className="border-b border-neutral-800 pb-4">
+            <h2 className="flex items-center gap-2 text-xl font-black uppercase tracking-wider text-white">
+              <span className="inline-block h-6 w-2.5 rounded-full bg-orange-500" />
+              Trending
+            </h2>
+          </div>
+          <div
+            data-horizontal-row
+            onWheel={(event) => {
+              if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) {
+                event.preventDefault();
+                event.currentTarget.scrollBy({ left: event.deltaY * 2, behavior: 'smooth' });
+              }
+            }}
+            className="flex snap-x gap-4 overflow-x-auto scroll-smooth pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
+            {trendingAnime.slice(0, 20).map((anime) => (
+              <button
+                key={anime.animeId}
+                type="button"
+                onClick={() => setSelectedAnime({ animeId: anime.animeId, title: anime.title, description: '', image: anime.image })}
+                className="group flex w-36 shrink-0 snap-start flex-col overflow-hidden rounded-xl border border-neutral-800/80 bg-[#151822] text-left transition-all duration-300 hover:border-orange-500/50 hover:shadow-xl hover:shadow-orange-500/10 sm:w-44"
+              >
+                <div className="relative aspect-[2/3] w-full overflow-hidden bg-neutral-900">
+                  <img src={anime.image} alt={anime.title} className="h-full w-full object-cover transition-[filter] duration-300 group-hover:brightness-110" />
+                </div>
+                <div className="p-3">
+                  <h3 className="line-clamp-2 text-xs font-bold leading-snug text-neutral-200 transition-colors group-hover:text-orange-400 sm:text-sm">{anime.title}</h3>
+                </div>
+              </button>
+            ))}
           </div>
         </section>
       )}

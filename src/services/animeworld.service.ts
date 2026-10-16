@@ -65,6 +65,12 @@ export interface LatestEpisode {
   time?: string;
 }
 
+export interface TrendingAnime {
+  animeId: string;
+  title: string;
+  image: string;
+}
+
 export interface CalendarDay {
   date: string;
   label: string;
@@ -448,6 +454,30 @@ export class AnimeWallService {
       return episodes;
     } catch (err) {
       console.error('❌ Errore getLatestEpisodes:', err);
+      return [];
+    }
+  }
+
+  static async getTrendingAnime(): Promise<TrendingAnime[]> {
+    try {
+      const $ = cheerio.load(await getAnimeWallHomepage());
+      const trending: TrendingAnime[] = [];
+
+      $('[data-name="trending"] .film-list .item').each((_, el) => {
+        const $el = $(el);
+        const link = $el.find('a.poster, a.name, a[href*="/play/"]').first().attr('href') || '';
+        const match = link.match(/\/play\/([^/?#]+)/);
+        const title = $el.find('.name, .title').text().trim() || $el.find('img').attr('alt') || '';
+        const image = formatUrl($el.find('img').attr('src') || $el.find('img').attr('data-src') || '');
+
+        if (match && title && !trending.some((item) => item.animeId === match[1])) {
+          trending.push({ animeId: match[1], title, image });
+        }
+      });
+
+      return trending;
+    } catch (err) {
+      console.error('Errore getTrendingAnime:', err);
       return [];
     }
   }
