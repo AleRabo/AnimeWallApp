@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import {
   CONTINUE_WATCHING_EVENT,
@@ -9,6 +9,7 @@ import {
   saveContinueWatching,
   type ContinueWatchingItem
 } from '@/lib/continue-watching';
+import { useGamepadAction } from '@/hooks/use-gamepad';
 
 interface LatestEpisode {
   id: string;
@@ -49,6 +50,25 @@ export default function HomePage() {
   const [selectedAnime, setSelectedAnime] = useState<HeroAnime | null>(null);
   const [trailerUrl, setTrailerUrl] = useState<string | null>(null);
   const [trailerLoading, setTrailerLoading] = useState(false);
+  const [pendingRemoval, setPendingRemoval] = useState<ContinueWatchingItem | null>(null);
+
+  const removeFocusedContinueWatching = useCallback(() => {
+    const card = document.activeElement?.closest<HTMLElement>('[data-continue-card]');
+    if (!card) return;
+    const animeId = card.dataset.animeId;
+    const episodeId = card.dataset.episodeId;
+    if (!animeId || !episodeId) return;
+    const item = continueWatching.find((entry) => entry.animeId === animeId && entry.episodeId === episodeId);
+    if (item) setPendingRemoval(item);
+  }, [continueWatching]);
+
+  useGamepadAction('remove-selected', removeFocusedContinueWatching);
+
+  const confirmRemoval = useCallback(() => {
+    if (!pendingRemoval) return;
+    removeContinueWatching(pendingRemoval.animeId, pendingRemoval.episodeId);
+    setPendingRemoval(null);
+  }, [pendingRemoval]);
 
   useEffect(() => {
     const update = () => setContinueWatching(getContinueWatching().filter((item) => !item.completed));
@@ -392,8 +412,18 @@ useEffect(() => {
                   ? Math.min(100, Math.round((item.currentTime / item.duration) * 100))
                   : 0;
                 return (
-                  <div key={`${item.animeId}-${item.episodeId}`} className="group relative isolate shrink-0 overflow-hidden rounded-2xl border border-neutral-800 bg-[#151822] shadow-lg shadow-black/20 transition-shadow duration-300 hover:shadow-xl hover:shadow-black/35">
-                    <Link href={`/watch?anime=${encodeURIComponent(item.animeId)}&ep=${encodeURIComponent(item.episodeId)}&n=${encodeURIComponent(displayEpisodeNumber(item.episodeNumber))}`}>
+                  <div
+                    key={`${item.animeId}-${item.episodeId}`}
+                    data-continue-card
+                    data-anime-id={item.animeId}
+                    data-episode-id={item.episodeId}
+                    data-title={item.title}
+                    className="group relative isolate shrink-0 overflow-hidden rounded-2xl border border-neutral-800 bg-[#151822] shadow-lg shadow-black/20 transition-shadow duration-300 hover:shadow-xl hover:shadow-black/35"
+                  >
+                    <Link
+                      href={`/watch?anime=${encodeURIComponent(item.animeId)}&ep=${encodeURIComponent(item.episodeId)}&n=${encodeURIComponent(displayEpisodeNumber(item.episodeNumber))}`}
+                      className="block rounded-2xl outline-none focus-visible:ring-4 focus-visible:ring-orange-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#08090c]"
+                    >
                       <div className="relative aspect-[2/3] w-36 bg-neutral-900 sm:w-44">
                         {item.cover ? <img src={item.cover} alt={item.title} className="relative z-0 h-full w-full object-cover transition-[filter] duration-300 ease-out group-hover:brightness-110" /> : (
                           <div className="flex h-full items-center justify-center p-3 text-center text-xs font-bold text-neutral-500">Nessuna copertina</div>
@@ -408,7 +438,8 @@ useEffect(() => {
                     </Link>
                     <button
                       type="button"
-                      onClick={() => removeContinueWatching(item.animeId, item.episodeId)}
+                      tabIndex={-1}
+                      onClick={() => setPendingRemoval(item)}
                       aria-label={`Rimuovi ${item.title} dalla cronologia`}
                       className="absolute right-2 top-2 rounded-lg bg-black/70 px-2 py-1 text-xs font-black text-white opacity-0 transition hover:bg-red-500 group-hover:opacity-100"
                     >
@@ -422,6 +453,38 @@ useEffect(() => {
         )}
         </div>
       </main>
+      {pendingRemoval && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="remove-continue-title"
+            className="w-full max-w-md rounded-2xl border border-neutral-700 bg-[#151822] p-6 shadow-2xl"
+          >
+            <h2 id="remove-continue-title" className="text-xl font-black text-white">Rimuovere episodio?</h2>
+            <p className="mt-2 text-sm text-neutral-300">
+              Vuoi rimuovere <strong>{pendingRemoval.title}</strong> dalla sezione Continua a guardare?
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setPendingRemoval(null)}
+                className="rounded-xl border border-neutral-600 px-4 py-2 font-bold text-neutral-200"
+              >
+                Annulla
+              </button>
+              <button
+                type="button"
+                autoFocus
+                onClick={confirmRemoval}
+                className="rounded-xl bg-red-500 px-4 py-2 font-black text-white"
+              >
+                Rimuovi
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </>
   );
 }

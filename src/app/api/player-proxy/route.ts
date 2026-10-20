@@ -132,6 +132,25 @@ const playerBridge = `<script>
     if (command.type !== 'animewall-control') return;
 
     if (video) {
+      if (command.action === 'play-pause') {
+        if (video.paused) void video.play().catch(() => {});
+        else video.pause();
+        return;
+      }
+
+      if (command.action === 'seek-backward' || command.action === 'seek-forward') {
+        const offset = command.action === 'seek-forward' ? 10 : -10;
+        video.currentTime = Math.max(0, Math.min(video.duration || Infinity, video.currentTime + offset));
+        return;
+      }
+
+      if (command.action === 'volume-down' || command.action === 'volume-up') {
+        const offset = command.action === 'volume-up' ? 0.1 : -0.1;
+        video.volume = Math.min(1, Math.max(0, video.volume + offset));
+        video.muted = video.volume === 0;
+        return;
+      }
+
       if (
         Number.isFinite(command.currentTime) &&
         Math.abs(video.currentTime - command.currentTime) > 1.5

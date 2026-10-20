@@ -1,9 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useState, use } from 'react';
+import { useCallback, useEffect, useRef, useState, use } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { getAnimeDetails, getEpisodeStream } from '@/lib/api';
 import { getContinueWatching, saveContinueWatching } from '@/lib/continue-watching';
+import { useGamepadAction } from '@/hooks/use-gamepad';
 
 interface Episode {
   id: string;
@@ -30,6 +32,7 @@ export default function WatchPage({
   const animeId = resolvedParams.anime || '';
   const episodeId = resolvedParams.ep || '';
   const requestedEpisodeNumber = resolvedParams.n || '';
+  const router = useRouter();
 
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [servers, setServers] = useState<ServerOption[]>([]);
@@ -44,12 +47,51 @@ export default function WatchPage({
   const [animeCover, setAnimeCover] = useState('');
   const videoRef = useRef<HTMLVideoElement>(null);
   const playerFrameRef = useRef<HTMLIFrameElement>(null);
+  const playerContainerRef = useRef<HTMLDivElement>(null);
   const completionHandledRef = useRef(false);
   const episodeNumberForHistory =
     validEpisodeNumber(episodes.find((episode) => String(episode.id) === String(episodeId))?.number)
     || validEpisodeNumber(requestedEpisodeNumber)
     || validEpisodeNumber(streamEpisodeNumber)
     || '1';
+
+  const sendPlayerCommand = useCallback((command: Record<string, unknown>) => {
+    if (videoRef.current) {
+      const video = videoRef.current;
+      if (command.action === 'play-pause') {
+        if (video.paused) void video.play();
+        else video.pause();
+      } else if (command.action === 'seek-backward' || command.action === 'seek-forward') {
+        const offset = command.action === 'seek-forward' ? 10 : -10;
+        video.currentTime = Math.max(0, Math.min(video.duration || Infinity, video.currentTime + offset));
+      } else if (command.action === 'volume-down' || command.action === 'volume-up') {
+        const offset = command.action === 'volume-up' ? 0.1 : -0.1;
+        video.volume = Math.max(0, Math.min(1, video.volume + offset));
+      }
+      return;
+    }
+    playerFrameRef.current?.contentWindow?.postMessage(
+      { type: 'animewall-control', ...command },
+      window.location.origin
+    );
+  }, []);
+
+  const handlePlayPause = useCallback(() => sendPlayerCommand({ action: 'play-pause' }), [sendPlayerCommand]);
+  const handleSeekBackward = useCallback(() => sendPlayerCommand({ action: 'seek-backward' }), [sendPlayerCommand]);
+  const handleSeekForward = useCallback(() => sendPlayerCommand({ action: 'seek-forward' }), [sendPlayerCommand]);
+  const handleVolumeDown = useCallback(() => sendPlayerCommand({ action: 'volume-down' }), [sendPlayerCommand]);
+  const handleVolumeUp = useCallback(() => sendPlayerCommand({ action: 'volume-up' }), [sendPlayerCommand]);
+  const handleFullscreen = useCallback(() => {
+    if (document.fullscreenElement) void document.exitFullscreen();
+    else void playerContainerRef.current?.requestFullscreen();
+  }, []);
+
+  useGamepadAction('play-pause', handlePlayPause);
+  useGamepadAction('seek-backward', handleSeekBackward);
+  useGamepadAction('seek-forward', handleSeekForward);
+  useGamepadAction('volume-down', handleVolumeDown);
+  useGamepadAction('volume-up', handleVolumeUp);
+  useGamepadAction('toggle-fullscreen', handleFullscreen);
 
   useEffect(() => {
     completionHandledRef.current = false;
@@ -300,6 +342,16 @@ export default function WatchPage({
       ? episodes[currentEpIndex + 1]
       : null;
 
+  const handlePreviousEpisode = useCallback(() => {
+    if (prevEp) router.push(`/watch?anime=${encodeURIComponent(animeId)}&ep=${encodeURIComponent(prevEp.id)}`);
+  }, [animeId, prevEp, router]);
+  const handleNextEpisode = useCallback(() => {
+    if (nextEp) router.push(`/watch?anime=${encodeURIComponent(animeId)}&ep=${encodeURIComponent(nextEp.id)}`);
+  }, [animeId, nextEp, router]);
+
+  useGamepadAction('previous-episode', handlePreviousEpisode);
+  useGamepadAction('next-episode', handleNextEpisode);
+
   const currentEpDisplay =
     currentEpIndex !== -1
       ? episodes[currentEpIndex]?.number || currentEpIndex + 1
@@ -358,7 +410,13 @@ const isDirectMedia = videoUrl.includes('.mp4') || videoUrl.includes('.m3u8');
       </div>
 
       {/* Player Video */}
-      <div className="relative aspect-video w-full rounded-3xl overflow-hidden bg-black border border-neutral-800 shadow-2xl mb-6">
+      <div
+        ref={playerContainerRef}
+        tabIndex={0}
+        data-gamepad-player
+        aria-label="Player video. Premi Start per pausa, L2 o R2 per scorrere, Triangolo per fullscreen"
+        className="relative aspect-video w-full rounded-3xl overflow-hidden bg-black border border-neutral-800 shadow-2xl mb-6"
+      >
         {loading && (
           <div className="absolute inset-0 bg-black/80 flex items-center justify-center z-10">
             <div className="w-8 h-8 border-3 border-orange-500 border-t-transparent rounded-full animate-spin" />

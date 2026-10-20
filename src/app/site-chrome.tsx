@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useGamepad } from '@/hooks/use-gamepad';
 
 const themes = [
   { id: 'ph', label: 'PH' },
@@ -25,6 +26,7 @@ const mascots: Record<ThemeId, string> = {
 };
 
 export default function SiteChrome({ children }: { children: React.ReactNode }) {
+  useGamepad();
   const pathname = usePathname();
   const [theme, setTheme] = useState<ThemeId>('ph');
   const [themeReady, setThemeReady] = useState(false);
