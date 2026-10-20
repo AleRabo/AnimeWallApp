@@ -249,6 +249,23 @@ function extractCalendarDate(rawValue: string, referenceDate = new Date()): { da
   };
 }
 
+function extractCalendarDateFromTimestamp(rawValue: string): { date: string; label: string } {
+  const timestamp = Number(rawValue);
+  if (!Number.isFinite(timestamp)) return { date: '', label: 'Data non indicata' };
+
+  const dateValue = new Date(timestamp);
+  const date = [
+    dateValue.getUTCFullYear(),
+    String(dateValue.getUTCMonth() + 1).padStart(2, '0'),
+    String(dateValue.getUTCDate()).padStart(2, '0')
+  ].join('-');
+
+  return {
+    date,
+    label: new Intl.DateTimeFormat('it-IT', { weekday: 'long', timeZone: 'UTC' }).format(dateValue)
+  };
+}
+
 export class AnimeWallService {
 
   static async getAnimeEpisodes(id: string): Promise<EpisodeItem[]> {
@@ -374,6 +391,43 @@ export class AnimeWallService {
       });
       const $ = cheerio.load(response.data);
       const calendar: CalendarDay[] = [];
+
+      $('.sch-days > .sch-day').each((_, section) => {
+        const $section = $(section);
+        const calendarDate = extractCalendarDateFromTimestamp($section.attr('data-start') || '');
+        const day: CalendarDay = { ...calendarDate, episodes: [] };
+
+        $section.find('.sch-row').each((__, row) => {
+          const $row = $(row);
+          const link = $row.find('a.sch-item[href*="/play/"]').first().attr('href') || '';
+          const match = link.match(/\/play\/([^/?#]+)/);
+          if (!match) return;
+
+          const titleElement = $row.find('.sch-ct').first();
+          const rawTitle = titleElement.text().trim()
+            || titleElement.attr('data-jtitle')
+            || 'Anime senza titolo';
+          const episodeNumber = $row.find('.sch-ep').first().text().match(/(\d+(?:\.\d+)?)/)?.[1] || '1';
+          const image = $row.find('img').first().attr('src') || '';
+          const time = $row.attr('data-time') || $row.find('.sch-time').first().text().trim();
+          const isDub = /\(ITA\)/i.test(rawTitle) || $row.find('.dub, .sch-dub').length > 0;
+
+          day.episodes.push({
+            animeId: match[1],
+            id: episodeNumber,
+            title: rawTitle.replace(/\(ITA\)/i, '').trim(),
+            episodeNumber,
+            image: formatUrl(image),
+            isDub,
+            isSub: !isDub,
+            time
+          });
+        });
+
+        if (day.episodes.length > 0) calendar.push(day);
+      });
+
+      if (calendar.length > 0) return calendar;
 
       $('.widget-schedule-page .widget-body > .costr').each((_, header) => {
         const label = $(header).find('.day-header').text().trim();
