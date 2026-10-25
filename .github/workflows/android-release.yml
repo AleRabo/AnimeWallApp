@@ -27,7 +27,9 @@ jobs:
           packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: '8.10'
 
       - name: Build Android APK
         working-directory: android
@@ -38,9 +40,8 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           VERSION="${GITHUB_REF_NAME#android-v}"
-          VERSION_CODE=$(echo "$VERSION" | awk -F. '{ print ($1 * 100) + ($2 * 10) + $3 }')
+          VERSION_CODE=$(echo "$VERSION" | awk -F. '{ print ($1 * 10000) + ($2 * 100) + $3 }')
           sed -i "s/versionCode [0-9]*/versionCode ${VERSION_CODE}/; s/versionName \"[^\"]*\"/versionName \"${VERSION}\"/" app/build.gradle
-          sed -i "s/CURRENT_VERSION_CODE = [0-9]*/CURRENT_VERSION_CODE = ${VERSION_CODE}/" app/src/main/java/it/animewall/android/MainActivity.java
           echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > release.jks
           gradle assembleRelease --no-daemon
 

@@ -10,9 +10,9 @@ android {
         applicationId "it.animewall.android"
         minSdk 26
         targetSdk 35
-        // Keep this aligned with MainActivity.versionCode(): 1.0.8 -> 10008.
-        versionCode 10008
-        versionName "1.0.8"
+        // Keep this aligned with MainActivity.versionCode(): 1.0.9 -> 10009.
+        versionCode 10009
+        versionName "1.0.9"
     }
 
     signingConfigs {
