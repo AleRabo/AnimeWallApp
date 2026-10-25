@@ -37,7 +37,7 @@ final class ImageLoader {
             return;
         }
         POOL.execute(() -> {
-            Bitmap bitmap = download(url, targetWidthPx);
+            Bitmap bitmap = downloadBest(url, targetWidthPx);
             if (bitmap == null) return;
             CACHE.put(url, bitmap);
             MAIN.post(() -> {
@@ -47,6 +47,24 @@ final class ImageLoader {
                 view.animate().alpha(1f).setDuration(220).start();
             });
         });
+    }
+
+    /** MyAnimeList serve miniature 50x70 (/r/50x70/...): togliendo il ridimensionamento si ottiene l'immagine grande. */
+    private static String upgrade(String url) {
+        if (!url.contains("myanimelist.net")) return url;
+        String better = url.replaceAll("\\?.*$", "")
+                .replaceAll("/r/\\d+x\\d+/", "/")
+                .replaceAll("(?<=\\d)\\.(jpg|jpeg|webp|png)$", "l.$1");
+        return better;
+    }
+
+    private static Bitmap downloadBest(String url, int targetWidthPx) {
+        String better = upgrade(url);
+        if (!better.equals(url)) {
+            Bitmap bitmap = download(better, targetWidthPx);
+            if (bitmap != null) return bitmap;
+        }
+        return download(url, targetWidthPx);
     }
 
     private static Bitmap download(String address, int targetWidthPx) {

@@ -56,11 +56,16 @@ import java.net.HttpURLConnection;
 import java.net.SocketTimeoutException;
 import java.net.URL;
 import java.net.UnknownHostException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 /** Catalogo nativo Android. Il servizio remoto è usato solo come backend dati di AnimeWall. */
@@ -212,6 +217,7 @@ public class MainActivity extends AppCompatActivity {
         LinearLayout featured = block();
         content.addView(featured);
         loadFeatured(featured);
+        addLatestSection();
         addSection("Top anime", "/api/top-anime", "anime");
         addSection("Prossime uscite", "/api/upcoming", "anime");
     }
@@ -269,16 +275,64 @@ public class MainActivity extends AppCompatActivity {
 
     // ------------------------------------------------------------------ caricamento sezioni
 
-    /** In evidenza: il primo elemento diventa il banner, gli altri una riga di card. */
+    // Il primo elenco non vuoto vince: se /api/featured risponde [] si ripiega su altre sorgenti.
+    private static final String[][] FEATURED_SOURCES = {
+            {"/api/featured", "featured"}, {"/api/trending", "trending"},
+            {"/api/latest", "latest"}, {"/api/calendar", "calendar"}};
+    private static final String[][] LATEST_SOURCES = {
+            {"/api/latest", "latest"}, {"/api/latest-episodes", "episodes"}, {"/api/calendar", "calendar"}};
+
+    private void fetchChain(String[][] sources, BiConsumer<List<JSONObject>, Integer> ok, Consumer<Exception> fail) {
+        executor.execute(() -> {
+            Exception last = null;
+            for (int i = 0; i < sources.length; i++) {
+                try {
+                    Object json = fetch(sources[i][0]);
+                    List<JSONObject> items = "/api/calendar".equals(sources[i][0])
+                            ? calendarLatest(json) : extractItems(json, sources[i][1]);
+                    if (!items.isEmpty()) {
+                        int index = i;
+                        runOnUiThread(() -> ok.accept(items, index));
+                        return;
+                    }
+                } catch (Exception e) {
+                    last = e;
+                }
+            }
+            Exception error = last;
+            runOnUiThread(() -> { if (error != null) fail.accept(error); else ok.accept(new ArrayList<>(), -1); });
+        });
+    }
+
+    /** Dal calendario ricava gli episodi già usciti, dal più recente. */
+    private List<JSONObject> calendarLatest(Object json) {
+        Object scope = find(json, "calendar", 0);
+        List<JSONObject> days = new ArrayList<>();
+        collectDays(scope != null ? scope : json, days, 0);
+        String today = todayIso();
+        List<JSONObject> out = new ArrayList<>();
+        List<JSONObject> all = new ArrayList<>();
+        for (int d = days.size() - 1; d >= 0; d--) {
+            List<JSONObject> list = new ArrayList<>();
+            collect(days.get(d).opt("episodes"), list, 0);
+            java.util.Collections.reverse(list);
+            all.addAll(list);
+            String date = text(days.get(d), "date");
+            if (date.isEmpty() || date.compareTo(today) <= 0) out.addAll(list);
+        }
+        return out.isEmpty() ? all : out;
+    }
+
+    /** In evidenza: il primo elemento diventa il banner. */
     private void loadFeatured(LinearLayout body) {
         body.removeAllViews();
-        body.addView(skeleton(true, 1));
-        fetchItems("/api/featured", "featured",
-                items -> {
+        body.addView(skeleton(true, 0));
+        fetchChain(FEATURED_SOURCES,
+                (items, source) -> {
                     body.removeAllViews();
                     if (items.isEmpty()) { body.addView(label("Nessun anime in evidenza.", 15, MUTED, false)); return; }
                     body.addView(hero(items.get(0)));
-                    if (items.size() > 1) {
+                    if (source == 0 && items.size() > 1) { // altra sezione "In evidenza" solo se sono veri featured
                         body.addView(heading("In evidenza"));
                         body.addView(row(items.subList(1, items.size())));
                     }
@@ -286,6 +340,28 @@ public class MainActivity extends AppCompatActivity {
                 e -> {
                     body.removeAllViews();
                     body.addView(errorView("/api/featured", e, () -> loadFeatured(body)));
+                });
+    }
+
+    private void addLatestSection() {
+        content.addView(heading("Ultime uscite"));
+        LinearLayout body = block();
+        content.addView(body);
+        loadLatest(body);
+    }
+
+    private void loadLatest(LinearLayout body) {
+        body.removeAllViews();
+        body.addView(skeleton(false, 1));
+        fetchChain(LATEST_SOURCES,
+                (items, source) -> {
+                    body.removeAllViews();
+                    if (items.isEmpty()) body.addView(label("Nessuna uscita recente.", 15, MUTED, false));
+                    else body.addView(row(items));
+                },
+                e -> {
+                    body.removeAllViews();
+                    body.addView(errorView("/api/latest", e, () -> loadLatest(body)));
                 });
     }
 
@@ -393,7 +469,7 @@ public class MainActivity extends AppCompatActivity {
 
     private View card(JSONObject item, int width) {
         String id = idOf(item), title = titleOf(item), image = imageOf(item), episode = text(item, "episodeNumber", "episode");
-        String rank = text(item, "rank"), score = text(item, "score"), time = text(item, "time");
+        String rank = text(item, "rank"), score = text(item, "score"), time = formatTime(text(item, "time"));
         boolean fromMal = !rank.isEmpty() && text(item, "url").contains("myanimelist");
 
         LinearLayout card = new LinearLayout(this);
@@ -423,6 +499,15 @@ public class MainActivity extends AppCompatActivity {
             FrameLayout.LayoutParams starParams = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM | Gravity.START);
             starParams.setMargins(dp(6), 0, 0, dp(6));
             poster.addView(star, starParams);
+        }
+        if (item.has("isDub") || item.has("isSub")) {
+            boolean dub = item.optBoolean("isDub", false);
+            TextView language = label(dub ? "DUB" : "SUB", 10, Color.WHITE, true);
+            language.setBackground(rounded(dub ? Color.rgb(22, 163, 74) : Color.rgb(37, 99, 235), 8));
+            language.setPadding(dp(7), dp(3), dp(7), dp(3));
+            FrameLayout.LayoutParams languageParams = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.END);
+            languageParams.setMargins(0, dp(6), dp(6), 0);
+            poster.addView(language, languageParams);
         }
         card.addView(poster, new LinearLayout.LayoutParams(width, Math.round(width * 1.45f)));
 
@@ -639,10 +724,13 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    /** Calendario raggruppato per giorno: /api/calendar restituisce [{date, label, episodes: [...]}]. */
+    /** Calendario: selettore dei giorni in alto, uscite del giorno scelto sotto. */
     private void showCalendar() {
         clearContent();
         content.addView(heading("Calendario"));
+        TextView sub = label("Tutte le uscite, giorno per giorno.", 13, MUTED, false);
+        sub.setPadding(0, 0, 0, dp(12));
+        content.addView(sub);
         LinearLayout body = block();
         content.addView(body);
         loadCalendar(body);
@@ -660,25 +748,9 @@ public class MainActivity extends AppCompatActivity {
                 List<JSONObject> flat = days.isEmpty() ? extractItems(json, "calendar") : null;
                 runOnUiThread(() -> {
                     body.removeAllViews();
-                    if (flat != null) {
-                        if (flat.isEmpty()) body.addView(label("Nessuna uscita in programma.", 15, MUTED, false));
-                        else body.addView(grid(flat));
-                        return;
-                    }
-                    for (JSONObject day : days) {
-                        List<JSONObject> episodes = new ArrayList<>();
-                        collect(day.opt("episodes"), episodes, 0);
-                        if (episodes.isEmpty()) continue;
-                        String label = text(day, "label");
-                        if (!label.isEmpty()) label = label.substring(0, 1).toUpperCase() + label.substring(1);
-                        String date = text(day, "date");
-                        if (date.length() == 10) label += "  ·  " + date.substring(8) + "/" + date.substring(5, 7);
-                        TextView dayTitle = label(label.isEmpty() ? "Uscite" : label, 16, ORANGE, true);
-                        dayTitle.setPadding(0, dp(14), 0, dp(8));
-                        body.addView(dayTitle);
-                        body.addView(grid(episodes));
-                    }
-                    if (body.getChildCount() == 0) body.addView(label("Nessuna uscita in programma.", 15, MUTED, false));
+                    if (!days.isEmpty()) renderCalendar(body, days);
+                    else if (flat != null && !flat.isEmpty()) body.addView(grid(flat));
+                    else body.addView(label("Nessuna uscita in programma.", 15, MUTED, false));
                 });
             } catch (Exception e) {
                 runOnUiThread(() -> {
@@ -687,6 +759,178 @@ public class MainActivity extends AppCompatActivity {
                 });
             }
         });
+    }
+
+    private void renderCalendar(LinearLayout body, List<JSONObject> rawDays) {
+        List<JSONObject> days = new ArrayList<>();
+        List<List<JSONObject>> episodes = new ArrayList<>();
+        for (JSONObject day : rawDays) {
+            List<JSONObject> list = new ArrayList<>();
+            collect(day.opt("episodes"), list, 0);
+            if (!list.isEmpty()) { days.add(day); episodes.add(list); }
+        }
+        if (days.isEmpty()) { body.addView(label("Nessuna uscita in programma.", 15, MUTED, false)); return; }
+
+        String today = todayIso();
+        int start = 0;
+        for (int i = 0; i < days.size(); i++) if (today.equals(text(days.get(i), "date"))) start = i;
+        int[] current = {start};
+
+        HorizontalScrollView chipScroll = new HorizontalScrollView(this);
+        chipScroll.setHorizontalScrollBarEnabled(false);
+        LinearLayout chips = new LinearLayout(this);
+        chipScroll.addView(chips);
+        LinearLayout panel = block();
+        body.addView(chipScroll);
+        LinearLayout.LayoutParams panelParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        panelParams.topMargin = dp(14);
+        body.addView(panel, panelParams);
+
+        Runnable[] show = new Runnable[1];
+        for (int i = 0; i < days.size(); i++) {
+            int index = i;
+            JSONObject day = days.get(i);
+            LinearLayout chip = new LinearLayout(this);
+            chip.setOrientation(LinearLayout.VERTICAL);
+            chip.setMinimumWidth(dp(100));
+            chip.setPadding(dp(14), dp(12), dp(14), dp(12));
+            chip.addView(label(dayName(day), 11, Color.WHITE, true));
+            chip.addView(label(shortDate(text(day, "date")), 15, Color.LTGRAY, true));
+            chip.addView(label(episodes.get(i).size() == 1 ? "1 uscita" : episodes.get(i).size() + " uscite", 11, MUTED, false));
+            chip.setOnClickListener(v -> { current[0] = index; show[0].run(); });
+            LinearLayout.LayoutParams chipParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            chipParams.rightMargin = dp(10);
+            chips.addView(chip, chipParams);
+        }
+        show[0] = () -> {
+            for (int i = 0; i < chips.getChildCount(); i++) styleChip((LinearLayout) chips.getChildAt(i), i == current[0]);
+            renderDay(panel, days.get(current[0]), episodes.get(current[0]));
+        };
+        show[0].run();
+        chipScroll.post(() -> chipScroll.scrollTo(Math.max(0, chips.getChildAt(current[0]).getLeft() - dp(8)), 0));
+    }
+
+    private void styleChip(LinearLayout chip, boolean selected) {
+        chip.setBackground(rounded(selected ? ORANGE : PANEL, 16));
+        ((TextView) chip.getChildAt(0)).setTextColor(selected ? Color.BLACK : Color.WHITE);
+        ((TextView) chip.getChildAt(1)).setTextColor(selected ? Color.BLACK : Color.LTGRAY);
+        ((TextView) chip.getChildAt(2)).setTextColor(selected ? Color.argb(200, 0, 0, 0) : MUTED);
+    }
+
+    private void renderDay(LinearLayout panel, JSONObject day, List<JSONObject> list) {
+        panel.removeAllViews();
+        panel.setBackground(rounded(PANEL, 20));
+        panel.setPadding(dp(14), dp(16), dp(14), dp(8));
+
+        LinearLayout head = new LinearLayout(this);
+        head.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout titles = block();
+        TextView kicker = label(dayName(day), 11, ORANGE, true);
+        kicker.setLetterSpacing(.12f);
+        String date = shortDate(text(day, "date"));
+        titles.addView(kicker);
+        titles.addView(label(date.isEmpty() ? "Ultime uscite" : "Uscite del " + date, 18, Color.WHITE, true));
+        head.addView(titles, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+        TextView count = label(list.size() == 1 ? "1 episodio" : list.size() + " episodi", 11, MUTED, true);
+        count.setBackground(rounded(Color.argb(40, 255, 255, 255), 12));
+        count.setPadding(dp(10), dp(5), dp(10), dp(5));
+        head.addView(count);
+        panel.addView(head);
+
+        View divider = new View(this);
+        divider.setBackgroundColor(Color.argb(40, 255, 255, 255));
+        LinearLayout.LayoutParams dividerParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1));
+        dividerParams.setMargins(0, dp(12), 0, dp(12));
+        panel.addView(divider, dividerParams);
+
+        for (JSONObject episode : list) {
+            LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            rowParams.bottomMargin = dp(8);
+            panel.addView(episodeRow(episode), rowParams);
+        }
+    }
+
+    private View episodeRow(JSONObject episode) {
+        String id = idOf(episode), title = titleOf(episode), image = imageOf(episode);
+        String number = text(episode, "episodeNumber", "episode"), time = formatTime(text(episode, "time"));
+        boolean dub = episode.optBoolean("isDub", false);
+
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(8), dp(8), dp(12), dp(8));
+        row.setBackground(rounded(Color.rgb(13, 15, 21), 14));
+        ripple(row);
+
+        ImageView cover = new ImageView(this);
+        cover.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        cover.setBackground(rounded(Color.rgb(32, 36, 50), 10));
+        Ui.clip(cover, 10);
+        row.addView(cover, new LinearLayout.LayoutParams(dp(52), dp(74)));
+        ImageLoader.load(cover, image, dp(52));
+
+        LinearLayout info = block();
+        info.setPadding(dp(12), 0, dp(8), 0);
+        TextView name = label(title, 13.5f, Color.WHITE, true);
+        name.setMaxLines(2);
+        name.setEllipsize(TextUtils.TruncateAt.END);
+        info.addView(name);
+        LinearLayout meta = new LinearLayout(this);
+        meta.setGravity(Gravity.CENTER_VERTICAL);
+        if (!number.isEmpty()) {
+            TextView ep = label("Ep " + number, 11, Color.BLACK, true);
+            ep.setBackground(rounded(ORANGE, 8));
+            ep.setPadding(dp(8), dp(3), dp(8), dp(3));
+            LinearLayout.LayoutParams epParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            epParams.rightMargin = dp(8);
+            meta.addView(ep, epParams);
+        }
+        TextView language = label(dub ? "DUB" : "SUB", 11, dub ? Color.rgb(74, 222, 128) : Color.rgb(96, 165, 250), true);
+        LinearLayout.LayoutParams languageParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        languageParams.rightMargin = dp(8);
+        meta.addView(language, languageParams);
+        if (!time.isEmpty()) meta.addView(label(time, 11, MUTED, true));
+        LinearLayout.LayoutParams metaParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        metaParams.topMargin = dp(6);
+        info.addView(meta, metaParams);
+        row.addView(info, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+        row.addView(label("→", 16, MUTED, false));
+
+        row.setOnClickListener(v -> openAnime(id, title, image));
+        return row;
+    }
+
+    private String dayName(JSONObject day) {
+        String name = text(day, "label");
+        return name.isEmpty() ? "USCITE" : name.toUpperCase(Locale.ITALY);
+    }
+
+    private String shortDate(String date) {
+        if (date.length() != 10) return "";
+        String[] months = {"gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic"};
+        try {
+            int month = Integer.parseInt(date.substring(5, 7));
+            int day = Integer.parseInt(date.substring(8, 10));
+            return day + " " + months[month - 1];
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    private String todayIso() {
+        Calendar c = Calendar.getInstance();
+        return String.format(Locale.US, "%04d-%02d-%02d", c.get(Calendar.YEAR), c.get(Calendar.MONTH) + 1, c.get(Calendar.DAY_OF_MONTH));
+    }
+
+    /** "15:00" resta tale; un timestamp (secondi o millisecondi) diventa l'ora locale. */
+    private String formatTime(String raw) {
+        if (raw.isEmpty()) return "";
+        if (raw.matches("\\d{1,2}:\\d{2}")) return raw;
+        if (raw.matches("\\d{9,14}")) {
+            long value = Long.parseLong(raw);
+            if (value < 100000000000L) value *= 1000;
+            return new SimpleDateFormat("HH:mm", Locale.ITALY).format(new Date(value));
+        }
+        return raw.length() <= 8 ? raw : "";
     }
 
     private void collectDays(Object node, List<JSONObject> out, int depth) {
