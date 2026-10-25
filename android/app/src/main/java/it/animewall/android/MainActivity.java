@@ -15,11 +15,14 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
 import android.text.InputType;
 import android.text.TextUtils;
 import android.util.TypedValue;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
@@ -323,7 +326,7 @@ public class MainActivity extends AppCompatActivity {
         return out.isEmpty() ? all : out;
     }
 
-    /** In evidenza: il primo elemento diventa il banner. */
+    /** In evidenza: banner a rotazione con i primi anime dell'elenco. */
     private void loadFeatured(LinearLayout body) {
         body.removeAllViews();
         body.addView(skeleton(true, 0));
@@ -331,16 +334,122 @@ public class MainActivity extends AppCompatActivity {
                 (items, source) -> {
                     body.removeAllViews();
                     if (items.isEmpty()) { body.addView(label("Nessun anime in evidenza.", 15, MUTED, false)); return; }
-                    body.addView(hero(items.get(0)));
-                    if (source == 0 && items.size() > 1) { // altra sezione "In evidenza" solo se sono veri featured
-                        body.addView(heading("In evidenza"));
-                        body.addView(row(items.subList(1, items.size())));
-                    }
+                    body.addView(heroCarousel(items));
                 },
                 e -> {
                     body.removeAllViews();
                     body.addView(errorView("/api/featured", e, () -> loadFeatured(body)));
                 });
+    }
+
+    /** Banner che cambia ogni 5 secondi; scorri a destra/sinistra per cambiare, tocca per aprire. */
+    private View heroCarousel(List<JSONObject> source) {
+        List<JSONObject> items = new ArrayList<>(source.subList(0, Math.min(6, source.size())));
+        int count = items.size();
+        int width = screenWidth() - dp(32);
+
+        FrameLayout frame = new FrameLayout(this);
+        frame.setBackground(rounded(PANEL, 20));
+        Ui.clip(frame, 20);
+        ImageView cover = new ImageView(this);
+        cover.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        frame.addView(cover, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        View shade = new View(this);
+        shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[]{Color.TRANSPARENT, Color.argb(110, 8, 9, 12), Color.argb(240, 8, 9, 12)}));
+        frame.addView(shade, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+        LinearLayout info = new LinearLayout(this);
+        info.setOrientation(LinearLayout.VERTICAL);
+        info.setPadding(dp(16), dp(16), dp(16), dp(16));
+        TextView badge = label("IN EVIDENZA", 10, ORANGE, true);
+        badge.setLetterSpacing(.12f);
+        TextView name = label("", 22, Color.WHITE, true);
+        name.setMaxLines(2);
+        name.setEllipsize(TextUtils.TruncateAt.END);
+        TextView cta = pill("▶  Guarda ora");
+        info.addView(badge);
+        info.addView(name);
+        LinearLayout.LayoutParams ctaParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        ctaParams.topMargin = dp(10);
+        info.addView(cta, ctaParams);
+        frame.addView(info, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM));
+
+        LinearLayout dots = new LinearLayout(this);
+        for (int i = 0; i < count; i++) {
+            View dot = new View(this);
+            LinearLayout.LayoutParams dotParams = new LinearLayout.LayoutParams(dp(7), dp(7));
+            dotParams.leftMargin = dp(5);
+            dots.addView(dot, dotParams);
+        }
+        if (count > 1) {
+            FrameLayout.LayoutParams dotsParams = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.END);
+            dotsParams.setMargins(0, dp(14), dp(14), 0);
+            frame.addView(dots, dotsParams);
+        }
+
+        int[] index = {0};
+        Runnable show = () -> {
+            JSONObject item = items.get(index[0]);
+            name.setText(titleOf(item));
+            ImageLoader.load(cover, imageOf(item), width);
+            for (int i = 0; i < dots.getChildCount(); i++) {
+                dots.getChildAt(i).setBackground(rounded(i == index[0] ? ORANGE : Color.argb(120, 255, 255, 255), 4));
+            }
+        };
+        show.run();
+
+        Handler handler = new Handler(Looper.getMainLooper());
+        Runnable[] tick = new Runnable[1];
+        Runnable restart = () -> {
+            handler.removeCallbacks(tick[0]);
+            if (count > 1) handler.postDelayed(tick[0], 5000);
+        };
+        tick[0] = () -> {
+            index[0] = (index[0] + 1) % count;
+            show.run();
+            restart.run();
+        };
+        // parte quando il banner è sullo schermo e si ferma quando se ne va (niente rotazioni "fantasma")
+        frame.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
+            @Override public void onViewAttachedToWindow(View v) { restart.run(); }
+            @Override public void onViewDetachedFromWindow(View v) { handler.removeCallbacks(tick[0]); }
+        });
+
+        float[] down = new float[2];
+        frame.setOnTouchListener((v, event) -> {
+            float dx = event.getX() - down[0], dy = event.getY() - down[1];
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    down[0] = event.getX();
+                    down[1] = event.getY();
+                    handler.removeCallbacks(tick[0]);
+                    return true;
+                case MotionEvent.ACTION_MOVE:
+                    if (Math.abs(dx) > dp(8) && Math.abs(dx) > Math.abs(dy) * 1.2f) v.getParent().requestDisallowInterceptTouchEvent(true);
+                    return true;
+                case MotionEvent.ACTION_UP:
+                    if (Math.abs(dx) > dp(40) && Math.abs(dx) > Math.abs(dy)) {
+                        index[0] = (index[0] + (dx < 0 ? 1 : count - 1)) % count;
+                        show.run();
+                    } else if (Math.abs(dx) < dp(10) && Math.abs(dy) < dp(10)) {
+                        JSONObject item = items.get(index[0]);
+                        openAnime(idOf(item), titleOf(item), imageOf(item));
+                    }
+                    restart.run();
+                    return true;
+                case MotionEvent.ACTION_CANCEL:
+                    restart.run();
+                    return true;
+                default:
+                    return true;
+            }
+        });
+
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Math.round(width * 0.62f));
+        params.bottomMargin = dp(8);
+        frame.setLayoutParams(params);
+        return frame;
     }
 
     private void addLatestSection() {
@@ -502,8 +611,8 @@ public class MainActivity extends AppCompatActivity {
         }
         if (item.has("isDub") || item.has("isSub")) {
             boolean dub = item.optBoolean("isDub", false);
-            TextView language = label(dub ? "DUB" : "SUB", 10, Color.WHITE, true);
-            language.setBackground(rounded(dub ? Color.rgb(22, 163, 74) : Color.rgb(37, 99, 235), 8));
+            TextView language = label(dub ? "DUB" : "SUB", 10, dub ? Color.BLACK : Color.WHITE, true);
+            language.setBackground(rounded(dub ? Color.rgb(234, 179, 8) : Color.rgb(37, 99, 235), 8));
             language.setPadding(dp(7), dp(3), dp(7), dp(3));
             FrameLayout.LayoutParams languageParams = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.END);
             languageParams.setMargins(0, dp(6), dp(6), 0);
@@ -598,10 +707,18 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private Object fetch(String path) throws Exception {
+        try {
+            return fetchOnce(path);
+        } catch (SocketTimeoutException e) {
+            return fetchOnce(path); // la seconda chiamata trova la funzione già "calda"
+        }
+    }
+
+    private Object fetchOnce(String path) throws Exception {
         HttpURLConnection c = (HttpURLConnection) new URL(API + path).openConnection();
         try {
             c.setConnectTimeout(10000);
-            c.setReadTimeout(15000);
+            c.setReadTimeout(25000);
             c.setRequestProperty("Accept", "application/json");
             c.setRequestProperty("User-Agent", "AnimeWall-Android/" + BuildConfig.VERSION_NAME);
             int code = c.getResponseCode();
@@ -884,7 +1001,7 @@ public class MainActivity extends AppCompatActivity {
             epParams.rightMargin = dp(8);
             meta.addView(ep, epParams);
         }
-        TextView language = label(dub ? "DUB" : "SUB", 11, dub ? Color.rgb(74, 222, 128) : Color.rgb(96, 165, 250), true);
+        TextView language = label(dub ? "DUB" : "SUB", 11, dub ? Color.rgb(234, 179, 8) : Color.rgb(96, 165, 250), true);
         LinearLayout.LayoutParams languageParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         languageParams.rightMargin = dp(8);
         meta.addView(language, languageParams);
