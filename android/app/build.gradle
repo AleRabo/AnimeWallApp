@@ -6,13 +6,17 @@ android {
     namespace "it.animewall.android"
     compileSdk 35
 
+    buildFeatures {
+        buildConfig true
+    }
+
     defaultConfig {
         applicationId "it.animewall.android"
         minSdk 26
         targetSdk 35
-        // Keep this aligned with MainActivity.versionCode(): 1.0.9 -> 10009.
-        versionCode 10009
-        versionName "1.0.9"
+        // Keep this aligned with MainActivity.versionCode(): 1.0.10 -> 10010.
+        versionCode 10010
+        versionName "1.0.10"
     }
 
     signingConfigs {
