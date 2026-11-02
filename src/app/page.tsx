@@ -136,33 +136,32 @@ export default function HomePage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [latestResponse, featuredResponse, trendingResponse] = await Promise.all([
-          fetch('/api/latest'),
-          fetch('/api/featured'),
-          fetch('/api/trending')
-        ]);
-
+        const latestPromise = fetch('/api/latest');
+        const featuredPromise = fetch('/api/featured');
+        const trendingPromise = fetch('/api/trending');
+        const latestResponse = await latestPromise;
         if (latestResponse.ok) {
           const latestData = await latestResponse.json();
           if (latestData.episodes) setLatestEpisodes(latestData.episodes);
+          setLoading(false);
         } else {
           console.warn('⚠️ Impossibile caricare gli ultimi episodi');
+          setLoading(false);
         }
 
+        const [featuredResponse, trendingResponse] = await Promise.all([featuredPromise, trendingPromise]);
         if (featuredResponse.ok) {
           const featuredData = await featuredResponse.json();
           if (featuredData.featured?.length > 0) {
             setSelectedAnime(featuredData.featured[0]);
           }
-
-          if (trendingResponse.ok) {
-            const trendingData = await trendingResponse.json();
-            if (Array.isArray(trendingData.trending)) setTrendingAnime(trendingData.trending);
-          }
+        }
+        if (trendingResponse.ok) {
+          const trendingData = await trendingResponse.json();
+          if (Array.isArray(trendingData.trending)) setTrendingAnime(trendingData.trending);
         }
       } catch (err) {
         console.error('❌ Errore durante il recupero dei dati:', err);
-      } finally {
         setLoading(false);
       }
     };

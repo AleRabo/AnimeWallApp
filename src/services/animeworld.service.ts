@@ -141,6 +141,31 @@ function normalizeText(value: string): string {
   return value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
+function levenshteinDistance(first: string, second: string): number {
+  const row = Array.from({ length: second.length + 1 }, (_, index) => index);
+  for (let i = 1; i <= first.length; i += 1) {
+    let previous = row[0];
+    row[0] = i;
+    for (let j = 1; j <= second.length; j += 1) {
+      const current = row[j];
+      row[j] = first[i - 1] === second[j - 1]
+        ? previous
+        : Math.min(previous + 1, row[j - 1] + 1, current + 1);
+      previous = current;
+    }
+  }
+  return row[second.length];
+}
+
+function scoreSearchTitle(title: string, queryWords: string[]): number {
+  const titleWords = normalizeText(title).split(/[^a-z0-9]+/).filter(Boolean);
+  return queryWords.reduce((score, word) => {
+    const best = titleWords.reduce((distance, candidate) =>
+      Math.min(distance, levenshteinDistance(word, candidate)), Number.MAX_SAFE_INTEGER);
+    return score + (best === 0 ? 3 : best <= 1 ? 2 : best <= 2 ? 1 : 0);
+  }, 0) + (normalizeText(title).includes(queryWords.join(' ')) ? 2 : 0);
+}
+
 async function getAnimeWallHomepage(): Promise<string> {
   if (homepageCache && homepageCache.expiresAt > Date.now()) {
     return homepageCache.html;
@@ -256,7 +281,7 @@ function extractCalendarDateFromTimestamp(rawValue: string): { date: string; lab
   const timestamp = Number(rawValue);
   if (!Number.isFinite(timestamp)) return { date: '', label: 'Data non indicata' };
 
-  const dateValue = new Date(timestamp);
+  const dateValue = new Date(timestamp < 100000000000 ? timestamp * 1000 : timestamp);
   const date = [
     dateValue.getUTCFullYear(),
     String(dateValue.getUTCMonth() + 1).padStart(2, '0'),
@@ -472,6 +497,13 @@ export class AnimeWallService {
       });
 
       if (calendar.length > 0) return calendar;
+
+      const datedDays: CalendarDay[] = [];
+      $('.sch-days > .sch-day').each((_, section) => {
+        const date = extractCalendarDateFromTimestamp($(section).attr('data-start') || '');
+        if (date.date) datedDays.push({ ...date, episodes: [] });
+      });
+      if (datedDays.length > 0) return datedDays;
     } catch (err) {
       console.warn('⚠️ Calendario sorgente non disponibile, uso le ultime uscite:', err);
     }
@@ -579,15 +611,18 @@ export class AnimeWallService {
     const normalized = query.trim().replace(/\s+/g, ' ');
     if (!normalized) return [];
     const exact = await this.searchAnimePage(normalized);
-    if (exact.length > 0) return exact;
 
     const words = normalized.split(' ');
     const fallbackQueries = words
       .map((_, index) => words.filter((__, wordIndex) => wordIndex !== index).join(' '))
       .filter((value, index, values) => value.length >= 3 && values.indexOf(value) === index);
     const fallbackResults = await Promise.all(fallbackQueries.map((value) => this.searchAnimePage(value)));
-    return fallbackResults.flat().filter((result, index, results) =>
-      results.findIndex((candidate) => candidate.link === result.link) === index
+    const results = [...exact, ...fallbackResults.flat()].filter((result, index, all) =>
+      all.findIndex((candidate) => candidate.link === result.link) === index
+    );
+    const queryWords = normalizeText(normalized).split(/[^a-z0-9]+/).filter(Boolean);
+    return results.sort((first, second) =>
+      scoreSearchTitle(second.title, queryWords) - scoreSearchTitle(first.title, queryWords)
     );
   }
 

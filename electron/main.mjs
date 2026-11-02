@@ -114,15 +114,13 @@ function waitForServer() {
 }
 
 async function createMainWindow() {
-  startNextServer();
-  await waitForServer();
-
   const window = new BrowserWindow({
     width: 1440,
     height: 960,
     minWidth: 1024,
     minHeight: 700,
     backgroundColor: '#08090c',
+    show: true,
     icon: path.join(__dirname, 'icon.png'),
     webPreferences: {
       contextIsolation: true,
@@ -130,6 +128,14 @@ async function createMainWindow() {
       sandbox: true
     }
   });
+
+  await window.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(`
+    <body style="margin:0;background:#08090c;color:#f97316;display:grid;place-items:center;font:700 18px system-ui">
+      <div>Avvio AnimeWall...</div>
+    </body>
+  `)}`);
+  startNextServer();
+  await waitForServer();
 
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (!url.startsWith(`http://${host}:${port}`)) {

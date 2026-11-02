@@ -28,9 +28,8 @@ export default function CalendarPage() {
   const [calendar, setCalendar] = useState<CalendarDay[]>([]);
   const [activeDay, setActiveDay] = useState(0);
   const [loading, setLoading] = useState(true);
-
   useEffect(() => {
-    fetch('/api/calendar')
+    fetch('/api/calendar', { cache: 'no-store' })
       .then((response) => {
         if (!response.ok) throw new Error('Calendario non disponibile');
         return response.json();
@@ -43,7 +42,7 @@ export default function CalendarPage() {
         setCalendar(nextCalendar);
         setActiveDay(todayIndex >= 0 ? todayIndex : 0);
       })
-      .catch((error) => console.error('❌ Errore calendario:', error))
+      .catch((calendarError) => console.error('❌ Errore calendario:', calendarError))
       .finally(() => setLoading(false));
   }, []);
 
@@ -67,12 +66,12 @@ export default function CalendarPage() {
 
       {!loading && calendar.length > 0 && (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 mb-8">
+          <div className="mb-8 flex gap-2 overflow-x-auto pb-2 sm:grid sm:grid-cols-4 lg:grid-cols-7">
             {calendar.map((item, index) => (
               <button
                 key={item.date}
                 onClick={() => setActiveDay(index)}
-                className={`min-h-20 rounded-2xl border p-3 text-left transition ${
+                className={`min-h-20 min-w-36 rounded-2xl border p-3 text-left transition sm:min-w-0 ${
                   activeDay === index
                     ? 'border-orange-500 bg-orange-500 text-black shadow-lg shadow-orange-500/20'
                     : 'border-neutral-800 bg-[#151822] text-neutral-300 hover:border-orange-500/50'
