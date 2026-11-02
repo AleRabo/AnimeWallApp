@@ -456,7 +456,28 @@ export class AnimeWallService {
         if (day.episodes.length > 0) calendar.push(day);
       });
 
-      if (calendar.length > 0) return calendar;
+      const undated: CalendarDay = { date: '', label: 'Data non specificata', episodes: [] };
+      $('.sch-ul li').each((_, item) => {
+        const $item = $(item);
+        const link = $item.find('a.sch-u[href*="/play/"]').first().attr('href') || '';
+        const match = link.match(/\/play\/([^/?#]+)/);
+        if (!match) return;
+        const rawTitle = $item.find('.sch-ut').first().text().trim() || 'Anime senza titolo';
+        const episodeNumber = $item.find('.sch-uep').first().text().match(/(\d+(?:\.\d+)?)/)?.[1] || '1';
+        const image = pickFirst($item.find('img').first().attr('src'), $item.find('img').first().attr('data-src'));
+        const isDub = /\(ITA\)/i.test(rawTitle) || $item.find('.sch-ita').length > 0;
+        undated.episodes.push({
+          animeId: match[1],
+          id: episodeNumber,
+          title: rawTitle.replace(/\(ITA\)/i, '').trim(),
+          episodeNumber,
+          image: formatUrl(image),
+          isDub,
+          isSub: !isDub,
+          time: ''
+        });
+      });
+      if (undated.episodes.length > 0) calendar.push(undated);
 
       $('.widget-schedule-page .widget-body > .costr').each((_, header) => {
         const label = $(header).find('.day-header').text().trim();
@@ -496,14 +517,15 @@ export class AnimeWallService {
         if (day.episodes.length > 0) calendar.push(day);
       });
 
-      if (calendar.length > 0) return calendar;
+      if (calendar.some((day) => day.date)) return calendar;
 
       const datedDays: CalendarDay[] = [];
       $('.sch-days > .sch-day').each((_, section) => {
         const date = extractCalendarDateFromTimestamp($(section).attr('data-start') || '');
         if (date.date) datedDays.push({ ...date, episodes: [] });
       });
-      if (datedDays.length > 0) return datedDays;
+      if (datedDays.length > 0) return [...datedDays, ...calendar];
+      if (calendar.length > 0) return calendar;
     } catch (err) {
       console.warn('⚠️ Calendario sorgente non disponibile, uso le ultime uscite:', err);
     }
