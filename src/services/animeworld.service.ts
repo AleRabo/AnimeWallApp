@@ -109,6 +109,9 @@ const topAnimeCache = new Map<number, { expiresAt: number; data: MalTopAnime[] }
 const animeDetailsCache = new Map<string, { expiresAt: number; data: AnimeDetails }>();
 const animeDetailsRequests = new Map<string, Promise<AnimeDetails>>();
 const ANIME_DETAILS_CACHE_TTL = 10 * 60 * 1000;
+const searchCache = new Map<string, { expiresAt: number; data: AnimeSearchResult[] }>();
+const searchRequests = new Map<string, Promise<AnimeSearchResult[]>>();
+const SEARCH_CACHE_TTL = 60 * 1000;
 
 // Helper per selezionare il primo valore valido
 function pickFirst(...values: Array<string | undefined | null>): string {
@@ -384,9 +387,10 @@ export class AnimeWallService {
   }
 
   // Recupera la programmazione settimanale, con fallback sugli ultimi episodi.
-  static async getCalendar(): Promise<CalendarDay[]> {
+  static async getCalendar(weekStart?: string): Promise<CalendarDay[]> {
     try {
       const response = await axios.get(`${BASE_URL}/schedule`, {
+        params: weekStart ? { week: weekStart } : undefined,
         headers: { 'User-Agent': USER_AGENT }
       });
       const $ = cheerio.load(response.data);
@@ -572,65 +576,97 @@ export class AnimeWallService {
    * Cerca anime su AnimeWall
    */
   static async searchAnime(query: string): Promise<AnimeSearchResult[]> {
-    try {
-      const searchUrl = `${BASE_URL}/filter?keyword=${encodeURIComponent(query)}`;
+    const normalized = query.trim().replace(/\s+/g, ' ');
+    if (!normalized) return [];
+    const exact = await this.searchAnimePage(normalized);
+    if (exact.length > 0) return exact;
 
-      const response = await axios.get(searchUrl, {
-        headers: { 'User-Agent': USER_AGENT }
-      });
+    const words = normalized.split(' ');
+    const fallbackQueries = words
+      .map((_, index) => words.filter((__, wordIndex) => wordIndex !== index).join(' '))
+      .filter((value, index, values) => value.length >= 3 && values.indexOf(value) === index);
+    const fallbackResults = await Promise.all(fallbackQueries.map((value) => this.searchAnimePage(value)));
+    return fallbackResults.flat().filter((result, index, results) =>
+      results.findIndex((candidate) => candidate.link === result.link) === index
+    );
+  }
 
-      const $ = cheerio.load(response.data);
-      const results: AnimeSearchResult[] = [];
+  private static async searchAnimePage(query: string): Promise<AnimeSearchResult[]> {
+    const normalizedQuery = query.trim().replace(/\s+/g, ' ');
+    if (!normalizedQuery) return [];
+    const key = normalizeText(normalizedQuery);
+    const cached = searchCache.get(key);
+    if (cached && cached.expiresAt > Date.now()) return cached.data;
+    const pending = searchRequests.get(key);
+    if (pending) return pending;
 
-      $('.film-list .item, .all-anime .item, .item').each((_, element) => {
-        const linkElement = $(element).find('a.name, a.poster, a').first();
-        const rawLink = linkElement.attr('href');
-        const link = pickFirst(rawLink);
-
-        if (!link || (!link.includes('/play/') && !link.includes('/anime/'))) {
-          return;
+    const request = (async () => {
+      try {
+        const urls = [
+          `${BASE_URL}/filter?keyword=${encodeURIComponent(normalizedQuery)}`,
+          `${BASE_URL}/search?keyword=${encodeURIComponent(normalizedQuery)}`
+        ];
+        let html = '';
+        for (const searchUrl of urls) {
+          const response = await axios.get(searchUrl, { headers: { 'User-Agent': USER_AGENT } });
+          html = typeof response.data === 'string' ? response.data : '';
+          if (html.includes('/play/')) break;
         }
 
-        const foundTitle = $(element).find('.name, .title, .title-anime').text().trim();
-        const rawTitle = pickFirst(foundTitle, linkElement.text().trim());
+        const $ = cheerio.load(html);
+        const results: AnimeSearchResult[] = [];
+        $('.film-list .item, .all-anime .item, .search-list .item, .item').each((_, element) => {
+          const $item = $(element);
+          const linkElement = $item.find('a.name, a.poster, a[data-jtitle], a[href*="/play/"]').first();
+          const link = pickFirst(linkElement.attr('href'));
+          const match = link.match(/\/play\/([^/?#]+)/);
+          if (!match) return;
 
-        // AnimeWall marca le versioni doppiate con un badge ".dub" e con "(ITA)" nel titolo
-        const isDub =
-          $(element).find('.status .dub, .dub').length > 0 ||
-          rawTitle.toLowerCase().includes('(ita)');
-        const title = rawTitle.replace(/\(ITA\)/i, '').trim();
+          const rawTitle = pickFirst(
+            linkElement.attr('data-jtitle'),
+            $item.find('[data-jtitle]').first().attr('data-jtitle'),
+            $item.find('.name, .title, .title-anime').first().text(),
+            linkElement.text()
+          ).replace(/\s+/g, ' ').trim();
+          if (!rawTitle) return;
 
-        const imgElement = $(element).find('img');
-        const srcAttr = imgElement.attr('src');
-        const dataSrcAttr = imgElement.attr('data-src');
-        const rawCover = pickFirst(dataSrcAttr, srcAttr);
-        const cover = formatUrl(rawCover);
-
-        const rawExtraInfo = $(element).find('.genre, .status, .type, .extra').text();
-        const extraInfo = rawExtraInfo.replace(/\s+/g, ' ').trim();
-
-        const fullLink = formatUrl(link);
-        const parts = link.split('/');
-        const id = parts[parts.length - 1] ? parts[parts.length - 1] : '';
-
-        if (title && !results.some((r) => r.link === fullLink)) {
+          const isDub = $item.find('.status .dub, .dub').length > 0
+            || /\(ita\)|\bita\b/i.test(rawTitle);
+          const title = rawTitle.replace(/\(ITA\)/i, '').trim();
+          const image = $item.find('img').first();
+          const rawCover = pickFirst(
+            image.attr('data-src'),
+            image.attr('data-original'),
+            image.attr('src'),
+            image.attr('srcset')?.split(',')[0]?.trim().split(/\s+/)[0]
+          );
+          const fullLink = formatUrl(link);
+          if (results.some((result) => result.link === fullLink)) return;
           results.push({
-            id,
+            id: match[1],
             title,
             link: fullLink,
-            cover,
-            extraInfo,
+            cover: formatUrl(rawCover),
+            extraInfo: $item.find('.genre, .status, .type, .extra').text().replace(/\s+/g, ' ').trim(),
             isDub,
             isSub: !isDub
           });
-        }
-      });
+        });
 
-      return results;
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Errore sconosciuto';
-      console.error('Errore durante lo scraping della ricerca:', errorMessage);
-      throw new Error(`Impossibile effettuare la ricerca: ${errorMessage}`);
+        searchCache.set(key, { data: results, expiresAt: Date.now() + SEARCH_CACHE_TTL });
+        return results;
+      } catch (err: unknown) {
+        const errorMessage = err instanceof Error ? err.message : 'Errore sconosciuto';
+        console.error('Errore durante lo scraping della ricerca:', errorMessage);
+        throw new Error(`Impossibile effettuare la ricerca: ${errorMessage}`);
+      }
+    })();
+
+    searchRequests.set(key, request);
+    try {
+      return await request;
+    } finally {
+      searchRequests.delete(key);
     }
   }
 

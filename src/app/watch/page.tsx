@@ -94,6 +94,19 @@ export default function WatchPage({
   useGamepadAction('toggle-fullscreen', handleFullscreen);
 
   useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.code !== 'Space' || event.repeat) return;
+      const player = playerContainerRef.current;
+      if (!player || (event.target instanceof Node && !player.contains(event.target))) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      handlePlayPause();
+    };
+    document.addEventListener('keydown', onKeyDown, true);
+    return () => document.removeEventListener('keydown', onKeyDown, true);
+  }, [handlePlayPause]);
+
+  useEffect(() => {
     completionHandledRef.current = false;
   }, [animeId, episodeId]);
 
@@ -230,7 +243,7 @@ export default function WatchPage({
     const save = (currentTime: number, duration: number, paused: boolean) => {
       if (!Number.isFinite(currentTime) || currentTime < 0) return;
       const safeDuration = Number.isFinite(duration) && duration > 0 ? duration : 0;
-      const completed = safeDuration > 0 && currentTime / safeDuration >= 0.95;
+      const completed = safeDuration > 0 && currentTime / safeDuration >= 0.93;
       const currentEpisodeIndex = episodes.findIndex((episode) => String(episode.id) === String(episodeId));
       const currentEpisodeNumber = Number(episodeNumberForHistory);
       const numericNextEpisodes = Number.isFinite(currentEpisodeNumber)
@@ -458,6 +471,15 @@ const isDirectMedia = videoUrl.includes('.mp4') || videoUrl.includes('.m3u8');
 
         )}
 
+      </div>
+      <div className="mb-6 mt-4 flex flex-wrap items-center gap-3">
+        <Link
+          href={`/watch-together?anime=${encodeURIComponent(animeId)}&ep=${encodeURIComponent(episodeId)}`}
+          className="rounded-xl border border-orange-500/40 bg-orange-500/10 px-4 py-2.5 text-sm font-black text-orange-300 transition hover:bg-orange-500 hover:text-black"
+        >
+          Guarda insieme
+        </Link>
+        <span className="text-xs text-neutral-500">Spazio: play/pausa</span>
       </div>
 
       {/* Controlli di Navigazione Episodi & Selettore Server */}

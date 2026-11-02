@@ -170,6 +170,13 @@ const playerBridge = `<script>
     const video = document.querySelector('video');
     if (!video) return;
 
+    document.addEventListener('keydown', (event) => {
+      if (event.code !== 'Space' || event.repeat) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (video.paused) void video.play().catch(() => {});
+      else video.pause();
+    }, true);
     video.addEventListener('timeupdate', () => sendPlayback());
     video.addEventListener('play', () => sendPlayback(true));
     video.addEventListener('pause', () => sendPlayback(true));
