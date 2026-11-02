@@ -2,7 +2,7 @@
 
 
 
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 
 import WatchTogetherRoom, { type RoomMedia, type RoomRole } from './room';
 
@@ -164,6 +164,40 @@ export default function WatchTogetherPage() {
   const [error, setError] = useState('');
 
   const [session, setSession] = useState<RoomSession | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const animeId = params.get('anime');
+    const requestedEpisodeId = params.get('ep');
+    if (!animeId) return;
+
+    let cancelled = false;
+    setLoadingAnime(true);
+    fetch(`/api/anime/${encodeURIComponent(animeId)}`)
+      .then((response) => {
+        if (!response.ok) throw new Error('Impossibile caricare l’anime selezionato.');
+        return response.json();
+      })
+      .then((data) => {
+        if (cancelled) return;
+        const anime = (data.anime || data.data) as AnimeData;
+        setSelectedAnime(anime);
+        setAnimeQuery(anime.title || animeId);
+        setEpisodeId(
+          requestedEpisodeId && anime.episodes?.some((episode) => episode.id === requestedEpisodeId)
+            ? requestedEpisodeId
+            : anime.episodes?.[0]?.id || ''
+        );
+      })
+      .catch((prefillError) => {
+        if (!cancelled) setError(prefillError instanceof Error ? prefillError.message : 'Errore caricando l’anime.');
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingAnime(false);
+      });
+
+    return () => { cancelled = true; };
+  }, []);
 
 
 

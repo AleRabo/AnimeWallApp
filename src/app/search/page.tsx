@@ -96,7 +96,7 @@ function SearchContent() {
 
       {!loading && results.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 sm:gap-6">
-          {results.slice(0, 20).map((anime, index) => {
+          {results.map((anime, index) => {
             // Controlla tutte le possibili chiavi con cui il backend invia l'immagine
             const imageUrl = anime.image || anime.poster || anime.cover || anime.img || '';
             // Fallback sul titolo se il backend non espone il flag (es. risposte in cache)
